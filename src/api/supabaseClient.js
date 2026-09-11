@@ -54,28 +54,113 @@ function saveLocalCollection(name, data) {
   }
 }
 
+// UUID helpers and legacy ID mapping to ensure 100% PostgreSQL UUID compatibility
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isUUID(str) {
+  return typeof str === 'string' && UUID_REGEX.test(str.trim());
+}
+
+export function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // RFC4122 v4 compliant fallback
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+// Deterministic UUIDs for seeded entities to avoid syntax errors with PostgreSQL UUID columns
+export const LEGACY_ID_MAP = {
+  // Departments
+  'dept-1': 'a0000000-0000-0000-0000-000000000001',
+  'dept-2': 'a0000000-0000-0000-0000-000000000002',
+  'dept-3': 'a0000000-0000-0000-0000-000000000003',
+  'dept-4': 'a0000000-0000-0000-0000-000000000004',
+  'dept-5': 'a0000000-0000-0000-0000-000000000005',
+  'dept-6': 'a0000000-0000-0000-0000-000000000006',
+  // Areas
+  'area-1': 'b0000000-0000-0000-0000-000000000001',
+  'area-2': 'b0000000-0000-0000-0000-000000000002',
+  'area-3': 'b0000000-0000-0000-0000-000000000003',
+  'area-4': 'b0000000-0000-0000-0000-000000000004',
+  'area-5': 'b0000000-0000-0000-0000-000000000005',
+  'area-6': 'b0000000-0000-0000-0000-000000000006',
+  // Officers
+  'off-1': 'c0000000-0000-0000-0000-000000000001',
+  'off-2': 'c0000000-0000-0000-0000-000000000002',
+};
+
+export function normalizeUUID(val) {
+  if (!val || typeof val !== 'string') return null;
+  const trimmed = val.trim();
+  if (!trimmed) return null;
+  if (LEGACY_ID_MAP[trimmed]) return LEGACY_ID_MAP[trimmed];
+  if (isUUID(trimmed)) return trimmed;
+  return null;
+}
+
+const UUID_FIELDS = new Set([
+  'id',
+  'area_id',
+  'department_id',
+  'officer_id',
+  'complaint_id',
+  'user_id',
+  'created_by_id',
+]);
+
+function sanitizeRecordForPostgres(record, tableName = '') {
+  if (!record || typeof record !== 'object') return record;
+  const clean = { ...record };
+
+  // Ensure ID is a valid UUID
+  if (clean.id !== undefined) {
+    const norm = normalizeUUID(clean.id);
+    clean.id = norm || generateUUID();
+  }
+
+  // Sanitize UUID relational columns
+  for (const field of UUID_FIELDS) {
+    if (field in clean) {
+      if (clean[field] === '' || clean[field] === undefined) {
+        clean[field] = null;
+      } else if (typeof clean[field] === 'string') {
+        const norm = normalizeUUID(clean[field]);
+        // If it was a string that cannot be parsed as a UUID, set to null to prevent Postgres casting errors
+        clean[field] = norm;
+      }
+    }
+  }
+
+  return clean;
+}
+
 // Initial mock datasets for demo mode
 const INITIAL_AREAS = [
-  { id: 'area-1', name: 'Kalyanpur', city: 'Kanpur', ward: 'Ward 38', district: 'Kanpur Nagar', landmark: 'Near Kalyanpur Crossing', latitude: 26.4927, longitude: 80.2589, active: true },
-  { id: 'area-2', name: 'Kakadeo', city: 'Kanpur', ward: 'Ward 42', district: 'Kanpur Nagar', landmark: 'Deoki Cinema Crossing', latitude: 26.4789, longitude: 80.2974, active: true },
-  { id: 'area-3', name: 'Civil Lines', city: 'Kanpur', ward: 'Ward 15', district: 'Kanpur Nagar', landmark: 'Green Park Stadium', latitude: 26.4729, longitude: 80.3444, active: true },
-  { id: 'area-4', name: 'Swaroop Nagar', city: 'Kanpur', ward: 'Ward 21', district: 'Kanpur Nagar', landmark: 'Near Motijheel', latitude: 26.4815, longitude: 80.3182, active: true },
-  { id: 'area-5', name: 'Govind Nagar', city: 'Kanpur', ward: 'Ward 54', district: 'Kanpur Nagar', landmark: 'C-Block Market', latitude: 26.4432, longitude: 80.3015, active: true },
-  { id: 'area-6', name: 'Kidwai Nagar', city: 'Kanpur', ward: 'Ward 62', district: 'Kanpur Nagar', landmark: 'Central Park', latitude: 26.4358, longitude: 80.3341, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000001', name: 'Kalyanpur', city: 'Kanpur', ward: 'Ward 38', district: 'Kanpur Nagar', landmark: 'Near Kalyanpur Crossing', latitude: 26.4927, longitude: 80.2589, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000002', name: 'Kakadeo', city: 'Kanpur', ward: 'Ward 42', district: 'Kanpur Nagar', landmark: 'Deoki Cinema Crossing', latitude: 26.4789, longitude: 80.2974, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000003', name: 'Civil Lines', city: 'Kanpur', ward: 'Ward 15', district: 'Kanpur Nagar', landmark: 'Green Park Stadium', latitude: 26.4729, longitude: 80.3444, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000004', name: 'Swaroop Nagar', city: 'Kanpur', ward: 'Ward 21', district: 'Kanpur Nagar', landmark: 'Near Motijheel', latitude: 26.4815, longitude: 80.3182, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000005', name: 'Govind Nagar', city: 'Kanpur', ward: 'Ward 54', district: 'Kanpur Nagar', landmark: 'C-Block Market', latitude: 26.4432, longitude: 80.3015, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000006', name: 'Kidwai Nagar', city: 'Kanpur', ward: 'Ward 62', district: 'Kanpur Nagar', landmark: 'Central Park', latitude: 26.4358, longitude: 80.3341, active: true },
 ];
 
 const INITIAL_DEPARTMENTS = [
-  { id: 'dept-1', name: 'Public Works Department (PWD)', description: 'Road repairs, potholes, sidewalks', head: 'Er. R. K. Verma', email: 'pwd.kanpur@nic.in', phone: '+91 512 2548901' },
-  { id: 'dept-2', name: 'Jal Sansthan (Water & Drainage)', description: 'Water supply lines, sewage overflows', head: 'Smt. Anjali Srivastava', email: 'jalsansthan.kanpur@nic.in', phone: '+91 512 2543412' },
-  { id: 'dept-3', name: 'KESCO (Electricity & Street Lighting)', description: 'Street lights, cables, transformers', head: 'Er. S. N. Mishra', email: 'kesco.grievance@nic.in', phone: '+91 512 2556789' },
-  { id: 'dept-4', name: 'Solid Waste & Sanitation (Nagar Nigam)', description: 'Garbage collection, illegal dumping', head: 'Dr. Alok Pandey', email: 'sanitation.knn@nic.in', phone: '+91 512 2534567' },
-  { id: 'dept-5', name: 'Health & Vector Control', description: 'Mosquito fogging, stray animals', head: 'Dr. Meena Gupta', email: 'health.knn@nic.in', phone: '+91 512 2534890' },
-  { id: 'dept-6', name: 'Traffic & Public Safety', description: 'Traffic signals, illegal parking', head: 'Inspector Rajesh Kumar', email: 'traffic.kanpur@uppolice.gov.in', phone: '+91 512 2304100' },
+  { id: 'a0000000-0000-0000-0000-000000000001', name: 'Public Works Department (PWD)', description: 'Road repairs, potholes, sidewalks', head: 'Er. R. K. Verma', email: 'pwd.kanpur@nic.in', phone: '+91 512 2548901' },
+  { id: 'a0000000-0000-0000-0000-000000000002', name: 'Jal Sansthan (Water & Drainage)', description: 'Water supply lines, sewage overflows', head: 'Smt. Anjali Srivastava', email: 'jalsansthan.kanpur@nic.in', phone: '+91 512 2543412' },
+  { id: 'a0000000-0000-0000-0000-000000000003', name: 'KESCO (Electricity & Street Lighting)', description: 'Street lights, cables, transformers', head: 'Er. S. N. Mishra', email: 'kesco.grievance@nic.in', phone: '+91 512 2556789' },
+  { id: 'a0000000-0000-0000-0000-000000000004', name: 'Solid Waste & Sanitation (Nagar Nigam)', description: 'Garbage collection, illegal dumping', head: 'Dr. Alok Pandey', email: 'sanitation.knn@nic.in', phone: '+91 512 2534567' },
+  { id: 'a0000000-0000-0000-0000-000000000005', name: 'Health & Vector Control', description: 'Mosquito fogging, stray animals', head: 'Dr. Meena Gupta', email: 'health.knn@nic.in', phone: '+91 512 2534890' },
+  { id: 'a0000000-0000-0000-0000-000000000006', name: 'Traffic & Public Safety', description: 'Traffic signals, illegal parking', head: 'Inspector Rajesh Kumar', email: 'traffic.kanpur@uppolice.gov.in', phone: '+91 512 2304100' },
 ];
 
 const INITIAL_OFFICERS = [
-  { id: 'off-1', name: 'Er. Vikram Singh', employee_id: 'OFF-KN-2024-01', email: 'vikram.singh@kanpur.gov.in', mobile: '9876543210', username: 'officer1', password_hash: 'password123', department: 'Public Works Department (PWD)', area_name: 'Kalyanpur', area_id: 'area-1', designation: 'Junior Engineer', status: 'Active' },
-  { id: 'off-2', name: 'Smt. Sunita Yadav', employee_id: 'OFF-KN-2024-02', email: 'sunita.yadav@kanpur.gov.in', mobile: '9876543211', username: 'officer2', password_hash: 'password123', department: 'Jal Sansthan (Water & Drainage)', area_name: 'Kakadeo', area_id: 'area-2', designation: 'Assistant Engineer', status: 'Active' }
+  { id: 'c0000000-0000-0000-0000-000000000001', name: 'Er. Vikram Singh', employee_id: 'OFF-KN-2024-01', email: 'vikram.singh@kanpur.gov.in', mobile: '9876543210', username: 'officer1', password_hash: 'password123', department: 'Public Works Department (PWD)', area_name: 'Kalyanpur', area_id: 'b0000000-0000-0000-0000-000000000001', designation: 'Junior Engineer', status: 'Active' },
+  { id: 'c0000000-0000-0000-0000-000000000002', name: 'Smt. Sunita Yadav', employee_id: 'OFF-KN-2024-02', email: 'sunita.yadav@kanpur.gov.in', mobile: '9876543211', username: 'officer2', password_hash: 'password123', department: 'Jal Sansthan (Water & Drainage)', area_name: 'Kakadeo', area_id: 'b0000000-0000-0000-0000-000000000002', designation: 'Assistant Engineer', status: 'Active' }
 ];
 
 // Entity Repository Factory
@@ -124,7 +209,13 @@ function createRepository(tableName, localDefault = []) {
           );
         }
         let items = getLocalCollection(tableName, localDefault).filter((item) => {
-          return Object.entries(filterObj).every(([k, v]) => String(item[k]) === String(v));
+          return Object.entries(filterObj).every(([k, v]) => {
+            const itemVal = item[k];
+            if (v === '' || v === null || v === undefined) {
+              return itemVal === '' || itemVal === null || itemVal === undefined;
+            }
+            return String(itemVal) === String(v) || (LEGACY_ID_MAP[v] && String(itemVal) === String(LEGACY_ID_MAP[v]));
+          });
         });
         if (sort) {
           const isDesc = sort.startsWith('-');
@@ -140,7 +231,16 @@ function createRepository(tableName, localDefault = []) {
 
       let query = supabase.from(tableName).select('*');
       Object.entries(filterObj).forEach(([k, v]) => {
-        query = query.eq(k, v);
+        if (UUID_FIELDS.has(k)) {
+          if (v === '' || v === undefined) {
+            query = query.is(k, null);
+          } else {
+            const norm = normalizeUUID(v);
+            query = query.eq(k, norm || v);
+          }
+        } else {
+          query = query.eq(k, v);
+        }
       });
       if (sort) {
         const isDesc = sort.startsWith('-');
@@ -155,6 +255,8 @@ function createRepository(tableName, localDefault = []) {
     },
 
     async get(id) {
+      const normalizedId = normalizeUUID(id) || id;
+
       if (!hasValidSupabaseConfig) {
         if (isStrictSupabase) {
           throw new Error(
@@ -162,23 +264,32 @@ function createRepository(tableName, localDefault = []) {
           );
         }
         const items = getLocalCollection(tableName, localDefault);
-        const found = items.find((x) => x.id === id);
+        const found = items.find((x) => x.id === id || x.id === normalizedId || (tableName === 'complaints' && x.complaint_code === id));
         if (!found) throw new Error(`${tableName} record with id ${id} not found`);
         return found;
       }
 
-      const { data, error } = await supabase.from(tableName).select('*').eq('id', id).single();
+      // If querying complaints and the provided ID is not a UUID (e.g. human tracking code CP20261234),
+      // query complaint_code instead to prevent Postgres syntax error for type uuid.
+      if (tableName === 'complaints' && !isUUID(normalizedId)) {
+        const { data, error } = await supabase.from(tableName).select('*').eq('complaint_code', id).maybeSingle();
+        if (error) throw error;
+        if (data) return data;
+      }
+
+      const { data, error } = await supabase.from(tableName).select('*').eq('id', normalizedId).single();
       if (error) throw error;
       return data;
     },
 
     async create(record) {
       const now = new Date().toISOString();
-      const withMeta = {
-        id: record.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'rec_' + Date.now()),
+      const rawWithMeta = {
+        id: record.id || generateUUID(),
         created_date: now,
         ...record,
       };
+      const cleanRecord = sanitizeRecordForPostgres(rawWithMeta, tableName);
 
       if (!hasValidSupabaseConfig) {
         if (isStrictSupabase) {
@@ -187,23 +298,28 @@ function createRepository(tableName, localDefault = []) {
           );
         }
         const items = getLocalCollection(tableName, localDefault);
-        items.unshift(withMeta);
+        items.unshift(cleanRecord);
         saveLocalCollection(tableName, items);
-        return withMeta;
+        return cleanRecord;
       }
 
-      const { data, error } = await supabase.from(tableName).insert(withMeta).select().single();
+      const { data, error } = await supabase.from(tableName).insert(cleanRecord).select().single();
       if (error) throw error;
       return data;
     },
 
     async bulkCreate(records = []) {
       const now = new Date().toISOString();
-      const formatted = records.map((r) => ({
-        id: r.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'rec_' + Math.random().toString(36).slice(2)),
-        created_date: now,
-        ...r,
-      }));
+      const formatted = records.map((r) =>
+        sanitizeRecordForPostgres(
+          {
+            id: r.id || generateUUID(),
+            created_date: now,
+            ...r,
+          },
+          tableName
+        )
+      );
 
       if (!hasValidSupabaseConfig) {
         if (isStrictSupabase) {
@@ -224,6 +340,10 @@ function createRepository(tableName, localDefault = []) {
 
     async update(id, patch) {
       const now = new Date().toISOString();
+      const normalizedId = normalizeUUID(id) || id;
+      const cleanPatch = sanitizeRecordForPostgres({ ...patch, updated_at: now }, tableName);
+      delete cleanPatch.id; // Don't overwrite PK on update
+
       if (!hasValidSupabaseConfig) {
         if (isStrictSupabase) {
           throw new Error(
@@ -231,9 +351,9 @@ function createRepository(tableName, localDefault = []) {
           );
         }
         const items = getLocalCollection(tableName, localDefault);
-        const idx = items.findIndex((x) => x.id === id);
+        const idx = items.findIndex((x) => x.id === id || x.id === normalizedId);
         if (idx === -1) throw new Error(`${tableName} record not found`);
-        const updated = { ...items[idx], ...patch, updated_at: now };
+        const updated = { ...items[idx], ...cleanPatch };
         items[idx] = updated;
         saveLocalCollection(tableName, items);
         return updated;
@@ -241,8 +361,8 @@ function createRepository(tableName, localDefault = []) {
 
       const { data, error } = await supabase
         .from(tableName)
-        .update({ ...patch, updated_at: now })
-        .eq('id', id)
+        .update(cleanPatch)
+        .eq('id', normalizedId)
         .select()
         .single();
       if (error) throw error;
@@ -261,18 +381,19 @@ function createRepository(tableName, localDefault = []) {
     },
 
     async delete(id) {
+      const normalizedId = normalizeUUID(id) || id;
       if (!hasValidSupabaseConfig) {
         if (isStrictSupabase) {
           throw new Error(
             'Supabase configuration required. Complaints must be stored in and retrieved directly from Supabase as the source of truth. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
           );
         }
-        const items = getLocalCollection(tableName, localDefault).filter((x) => x.id !== id);
+        const items = getLocalCollection(tableName, localDefault).filter((x) => x.id !== id && x.id !== normalizedId);
         saveLocalCollection(tableName, items);
         return { success: true };
       }
 
-      const { error } = await supabase.from(tableName).delete().eq('id', id);
+      const { error } = await supabase.from(tableName).delete().eq('id', normalizedId);
       if (error) throw error;
       return { success: true };
     },
@@ -675,8 +796,9 @@ const functions = {
         const updated = await entities.Complaint.update(complaint_id, patch);
 
         // Record officer activity
+        const normOfficerId = normalizeUUID(officer_id);
         await entities.OfficerActivityLog.create({
-          officer_id: officer_id || 'officer',
+          officer_id: normOfficerId || null,
           officer_name: payload.officer_name || 'Assigned Officer',
           complaint_id,
           complaint_title: complaint.title,
@@ -715,14 +837,17 @@ const functions = {
 
     // 4. Save Officer
     if (functionName === 'saveOfficer') {
-      const { officer_id, password, ...rest } = payload;
+      const { officer_id, password, area_id, ...rest } = payload;
+      const cleanAreaId = normalizeUUID(area_id) || (area_id || null);
       const dataToSave = {
         ...rest,
+        area_id: cleanAreaId,
         ...(password ? { password_hash: password } : {}),
       };
       let saved;
-      if (officer_id) {
-        saved = await entities.Officer.update(officer_id, dataToSave);
+      const cleanOfficerId = normalizeUUID(officer_id);
+      if (cleanOfficerId) {
+        saved = await entities.Officer.update(cleanOfficerId, dataToSave);
       } else {
         saved = await entities.Officer.create(dataToSave);
       }

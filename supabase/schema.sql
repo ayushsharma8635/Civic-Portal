@@ -4,6 +4,7 @@
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- 1. PROFILES TABLE (Linked with Supabase Auth)
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -60,9 +61,9 @@ CREATE POLICY "Users can update their own profile"
   TO authenticated
   USING (auth.uid() = id);
 
--- 2. DEPARTMENTS TABLE
+-- 2. DEPARTMENTS TABLE (UUID Primary Key)
 CREATE TABLE IF NOT EXISTS public.departments (
-  id TEXT PRIMARY KEY DEFAULT ('dept_' || substr(md5(random()::text), 1, 8)),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   description TEXT,
   head TEXT,
@@ -82,9 +83,9 @@ CREATE POLICY "Departments are editable by authenticated users"
   TO authenticated
   USING (true);
 
--- 3. AREAS TABLE
+-- 3. AREAS TABLE (UUID Primary Key)
 CREATE TABLE IF NOT EXISTS public.areas (
-  id TEXT PRIMARY KEY DEFAULT ('area_' || substr(md5(random()::text), 1, 8)),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   city TEXT DEFAULT 'Kanpur',
   ward TEXT,
@@ -107,9 +108,9 @@ CREATE POLICY "Areas can be managed by authenticated users"
   TO authenticated
   USING (true);
 
--- 4. OFFICERS TABLE
+-- 4. OFFICERS TABLE (UUID Primary Key and UUID Foreign Keys)
 CREATE TABLE IF NOT EXISTS public.officers (
-  id TEXT PRIMARY KEY DEFAULT ('off_' || substr(md5(random()::text), 1, 8)),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   employee_id TEXT UNIQUE,
   email TEXT,
@@ -118,7 +119,7 @@ CREATE TABLE IF NOT EXISTS public.officers (
   password_hash TEXT,
   department TEXT,
   area_name TEXT,
-  area_id TEXT REFERENCES public.areas(id) ON DELETE SET NULL,
+  area_id UUID REFERENCES public.areas(id) ON DELETE SET NULL,
   designation TEXT,
   status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive', 'On Leave')),
   created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
@@ -136,30 +137,40 @@ CREATE POLICY "Officers manageable by authenticated users"
   TO authenticated
   USING (true);
 
--- 5. COMPLAINTS TABLE
+-- 5. COMPLAINTS TABLE (UUID Primary Key, UUID Foreign Keys)
 CREATE TABLE IF NOT EXISTS public.complaints (
-  id TEXT PRIMARY KEY DEFAULT ('comp_' || substr(md5(random()::text), 1, 10)),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  complaint_code TEXT,
   title TEXT NOT NULL,
   description TEXT,
   category TEXT,
   department TEXT,
   area_name TEXT,
-  area_id TEXT,
+  area_id UUID REFERENCES public.areas(id) ON DELETE SET NULL,
   landmark TEXT,
   address TEXT,
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION,
   priority TEXT NOT NULL DEFAULT 'Medium' CHECK (priority IN ('Low', 'Medium', 'High', 'Urgent')),
-  status TEXT NOT NULL DEFAULT 'Submitted' CHECK (status IN ('Submitted', 'In Progress', 'Resolved', 'Rejected')),
+  status TEXT NOT NULL DEFAULT 'Submitted' CHECK (status IN ('Submitted', 'Pending', 'In Review', 'In Progress', 'Assigned', 'Resolved', 'Rejected')),
   is_spam BOOLEAN NOT NULL DEFAULT false,
   duplicate_of TEXT,
   ai_summary TEXT,
   remarks TEXT,
-  officer_id TEXT,
-  created_by_id TEXT,
+  officer_id UUID REFERENCES public.officers(id) ON DELETE SET NULL,
+  officer_name TEXT,
+  created_by_id UUID,
   citizen_name TEXT,
   citizen_email TEXT,
   citizen_phone TEXT,
+  estimated_days INTEGER,
+  expected_date TIMESTAMPTZ,
+  is_delayed BOOLEAN DEFAULT false,
+  temporary_solution TEXT,
+  temp_alt_route TEXT,
+  temp_alt_facility TEXT,
+  temp_availability_time TEXT,
+  temp_contact TEXT,
   timeline JSONB DEFAULT '[]'::jsonb,
   actual_resolved_date TIMESTAMPTZ,
   created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
@@ -185,10 +196,10 @@ CREATE POLICY "Only authorized admin can delete complaints"
   TO authenticated
   USING (public.is_admin());
 
--- 6. COMPLAINT MEDIA TABLE
+-- 6. COMPLAINT MEDIA TABLE (UUID Primary Key, UUID Foreign Key)
 CREATE TABLE IF NOT EXISTS public.complaint_media (
-  id TEXT PRIMARY KEY DEFAULT ('media_' || substr(md5(random()::text), 1, 8)),
-  complaint_id TEXT REFERENCES public.complaints(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  complaint_id UUID REFERENCES public.complaints(id) ON DELETE CASCADE,
   phase TEXT DEFAULT 'during' CHECK (phase IN ('before', 'during', 'after')),
   file_url TEXT NOT NULL,
   file_name TEXT,
@@ -212,14 +223,14 @@ CREATE POLICY "Complaint media deletable by authenticated users"
   TO authenticated
   USING (true);
 
--- 7. NOTIFICATIONS TABLE
+-- 7. NOTIFICATIONS TABLE (UUID Primary Key)
 CREATE TABLE IF NOT EXISTS public.notifications (
-  id TEXT PRIMARY KEY DEFAULT ('notif_' || substr(md5(random()::text), 1, 8)),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   message TEXT NOT NULL,
   type TEXT DEFAULT 'status_update',
-  complaint_id TEXT,
-  user_id TEXT,
+  complaint_id UUID REFERENCES public.complaints(id) ON DELETE CASCADE,
+  user_id UUID,
   read BOOLEAN NOT NULL DEFAULT false,
   created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
@@ -238,9 +249,9 @@ CREATE POLICY "Notifications updatable by anyone"
   ON public.notifications FOR UPDATE
   USING (true);
 
--- 8. ACTIVITY LOGS TABLE
+-- 8. ACTIVITY LOGS TABLE (UUID Primary Key)
 CREATE TABLE IF NOT EXISTS public.activity_logs (
-  id TEXT PRIMARY KEY DEFAULT ('act_' || substr(md5(random()::text), 1, 8)),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   action TEXT NOT NULL,
   entity TEXT NOT NULL,
   entity_id TEXT,
@@ -259,12 +270,12 @@ CREATE POLICY "Activity logs insertable by anyone"
   ON public.activity_logs FOR INSERT
   WITH CHECK (true);
 
--- 9. OFFICER ACTIVITY LOGS TABLE
+-- 9. OFFICER ACTIVITY LOGS TABLE (UUID Primary Key, UUID Foreign Keys)
 CREATE TABLE IF NOT EXISTS public.officer_activity_logs (
-  id TEXT PRIMARY KEY DEFAULT ('offact_' || substr(md5(random()::text), 1, 8)),
-  officer_id TEXT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  officer_id UUID REFERENCES public.officers(id) ON DELETE SET NULL,
   officer_name TEXT,
-  complaint_id TEXT REFERENCES public.complaints(id) ON DELETE CASCADE,
+  complaint_id UUID REFERENCES public.complaints(id) ON DELETE CASCADE,
   complaint_title TEXT,
   action TEXT NOT NULL,
   old_status TEXT,
@@ -283,11 +294,11 @@ CREATE POLICY "Officer activity logs insertable by anyone"
   ON public.officer_activity_logs FOR INSERT
   WITH CHECK (true);
 
--- 10. FEEDBACK TABLE
+-- 10. FEEDBACK TABLE (UUID Primary Key, UUID Foreign Key)
 CREATE TABLE IF NOT EXISTS public.feedback (
-  id TEXT PRIMARY KEY DEFAULT ('fb_' || substr(md5(random()::text), 1, 8)),
-  complaint_id TEXT REFERENCES public.complaints(id) ON DELETE CASCADE,
-  user_id TEXT,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  complaint_id UUID REFERENCES public.complaints(id) ON DELETE CASCADE,
+  user_id UUID,
   rating INTEGER CHECK (rating >= 1 AND rating <= 5),
   comments TEXT,
   created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
@@ -319,32 +330,32 @@ CREATE POLICY "Allow upload access on complaint-media"
   WITH CHECK (bucket_id = 'complaint-media');
 
 -- ==============================================================================
--- INITIAL SEED DATA
+-- INITIAL SEED DATA (Valid UUIDs for all rows)
 -- ==============================================================================
 INSERT INTO public.departments (id, name, description, head, email, phone)
 VALUES
-  ('dept-1', 'Public Works Department (PWD)', 'Road repairs, potholes, sidewalks', 'Er. R. K. Verma', 'pwd.kanpur@nic.in', '+91 512 2548901'),
-  ('dept-2', 'Jal Sansthan (Water & Drainage)', 'Water supply lines, sewage overflows', 'Smt. Anjali Srivastava', 'jalsansthan.kanpur@nic.in', '+91 512 2543412'),
-  ('dept-3', 'KESCO (Electricity & Street Lighting)', 'Street lights, cables, transformers', 'Er. S. N. Mishra', 'kesco.grievance@nic.in', '+91 512 2556789'),
-  ('dept-4', 'Solid Waste & Sanitation (Nagar Nigam)', 'Garbage collection, illegal dumping', 'Dr. Alok Pandey', 'sanitation.knn@nic.in', '+91 512 2534567'),
-  ('dept-5', 'Health & Vector Control', 'Mosquito fogging, stray animals', 'Dr. Meena Gupta', 'health.knn@nic.in', '+91 512 2534890'),
-  ('dept-6', 'Traffic & Public Safety', 'Traffic signals, illegal parking', 'Inspector Rajesh Kumar', 'traffic.kanpur@uppolice.gov.in', '+91 512 2304100')
+  ('a0000000-0000-0000-0000-000000000001', 'Public Works Department (PWD)', 'Road repairs, potholes, sidewalks', 'Er. R. K. Verma', 'pwd.kanpur@nic.in', '+91 512 2548901'),
+  ('a0000000-0000-0000-0000-000000000002', 'Jal Sansthan (Water & Drainage)', 'Water supply lines, sewage overflows', 'Smt. Anjali Srivastava', 'jalsansthan.kanpur@nic.in', '+91 512 2543412'),
+  ('a0000000-0000-0000-0000-000000000003', 'KESCO (Electricity & Street Lighting)', 'Street lights, cables, transformers', 'Er. S. N. Mishra', 'kesco.grievance@nic.in', '+91 512 2556789'),
+  ('a0000000-0000-0000-0000-000000000004', 'Solid Waste & Sanitation (Nagar Nigam)', 'Garbage collection, illegal dumping', 'Dr. Alok Pandey', 'sanitation.knn@nic.in', '+91 512 2534567'),
+  ('a0000000-0000-0000-0000-000000000005', 'Health & Vector Control', 'Mosquito fogging, stray animals', 'Dr. Meena Gupta', 'health.knn@nic.in', '+91 512 2534890'),
+  ('a0000000-0000-0000-0000-000000000006', 'Traffic & Public Safety', 'Traffic signals, illegal parking', 'Inspector Rajesh Kumar', 'traffic.kanpur@uppolice.gov.in', '+91 512 2304100')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.areas (id, name, city, ward, district, landmark, latitude, longitude, active)
 VALUES
-  ('area-1', 'Kalyanpur', 'Kanpur', 'Ward 38', 'Kanpur Nagar', 'Near Kalyanpur Crossing', 26.4927, 80.2589, true),
-  ('area-2', 'Kakadeo', 'Kanpur', 'Ward 42', 'Kanpur Nagar', 'Deoki Cinema Crossing', 26.4789, 80.2974, true),
-  ('area-3', 'Civil Lines', 'Kanpur', 'Ward 15', 'Kanpur Nagar', 'Green Park Stadium', 26.4729, 80.3444, true),
-  ('area-4', 'Swaroop Nagar', 'Kanpur', 'Ward 21', 'Kanpur Nagar', 'Near Motijheel', 26.4815, 80.3182, true),
-  ('area-5', 'Govind Nagar', 'Kanpur', 'Ward 54', 'Kanpur Nagar', 'C-Block Market', 26.4432, 80.3015, true),
-  ('area-6', 'Kidwai Nagar', 'Kanpur', 'Ward 62', 'Kanpur Nagar', 'Central Park', 26.4358, 80.3341, true)
+  ('b0000000-0000-0000-0000-000000000001', 'Kalyanpur', 'Kanpur', 'Ward 38', 'Kanpur Nagar', 'Near Kalyanpur Crossing', 26.4927, 80.2589, true),
+  ('b0000000-0000-0000-0000-000000000002', 'Kakadeo', 'Kanpur', 'Ward 42', 'Kanpur Nagar', 'Deoki Cinema Crossing', 26.4789, 80.2974, true),
+  ('b0000000-0000-0000-0000-000000000003', 'Civil Lines', 'Kanpur', 'Ward 15', 'Kanpur Nagar', 'Green Park Stadium', 26.4729, 80.3444, true),
+  ('b0000000-0000-0000-0000-000000000004', 'Swaroop Nagar', 'Kanpur', 'Ward 21', 'Kanpur Nagar', 'Near Motijheel', 26.4815, 80.3182, true),
+  ('b0000000-0000-0000-0000-000000000005', 'Govind Nagar', 'Kanpur', 'Ward 54', 'Kanpur Nagar', 'C-Block Market', 26.4432, 80.3015, true),
+  ('b0000000-0000-0000-0000-000000000006', 'Kidwai Nagar', 'Kanpur', 'Ward 62', 'Kanpur Nagar', 'Central Park', 26.4358, 80.3341, true)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.officers (id, name, employee_id, email, mobile, username, password_hash, department, area_name, area_id, designation, status)
 VALUES
-  ('off-1', 'Er. Vikram Singh', 'OFF-KN-2024-01', 'vikram.singh@kanpur.gov.in', '9876543210', 'officer1', 'password123', 'Public Works Department (PWD)', 'Kalyanpur', 'area-1', 'Junior Engineer', 'Active'),
-  ('off-2', 'Smt. Sunita Yadav', 'OFF-KN-2024-02', 'sunita.yadav@kanpur.gov.in', '9876543211', 'officer2', 'password123', 'Jal Sansthan (Water & Drainage)', 'Kakadeo', 'area-2', 'Assistant Engineer', 'Active')
+  ('c0000000-0000-0000-0000-000000000001', 'Er. Vikram Singh', 'OFF-KN-2024-01', 'vikram.singh@kanpur.gov.in', '9876543210', 'officer1', 'password123', 'Public Works Department (PWD)', 'Kalyanpur', 'b0000000-0000-0000-0000-000000000001', 'Junior Engineer', 'Active'),
+  ('c0000000-0000-0000-0000-000000000002', 'Smt. Sunita Yadav', 'OFF-KN-2024-02', 'sunita.yadav@kanpur.gov.in', '9876543211', 'officer2', 'password123', 'Jal Sansthan (Water & Drainage)', 'Kakadeo', 'b0000000-0000-0000-0000-000000000002', 'Assistant Engineer', 'Active')
 ON CONFLICT (id) DO NOTHING;
 
 -- ==============================================================================

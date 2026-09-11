@@ -97,7 +97,7 @@ export default function AdminComplaints() {
         status: manageForm.status,
         department: manageForm.department,
         remarks: manageForm.remarks,
-        officer_id: manageForm.officer_id || '',
+        officer_id: manageForm.officer_id || null,
         officer_name: manageForm.officer_name || '',
         timeline: [...timeline, { status: manageForm.status, note: manageForm.remarks || 'Status updated by admin', timestamp: now }],
       };

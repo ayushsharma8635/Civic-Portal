@@ -78,6 +78,7 @@ export default function SubmitComplaint() {
       const expectedDate = computeExpectedDate(now, estimatedDays);
       const complaint = {
         ...form,
+        area_id: form.area_id || null,
         created_by_id: currentUser?.id || null,
         citizen_name: currentUser?.full_name || currentUser?.email?.split('@')[0] || 'Citizen',
         citizen_email: currentUser?.email || '',

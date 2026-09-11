@@ -46,16 +46,19 @@ CREATE TRIGGER trg_enforce_admin_role
   FOR EACH ROW
   EXECUTE FUNCTION public.enforce_single_admin_role();
 
+DROP POLICY IF EXISTS "Public profiles are viewable by authenticated users" ON public.profiles;
 CREATE POLICY "Public profiles are viewable by authenticated users"
   ON public.profiles FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
 CREATE POLICY "Users can insert their own profile"
   ON public.profiles FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 CREATE POLICY "Users can update their own profile"
   ON public.profiles FOR UPDATE
   TO authenticated
@@ -74,10 +77,12 @@ CREATE TABLE IF NOT EXISTS public.departments (
 
 ALTER TABLE public.departments ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Departments are viewable by anyone" ON public.departments;
 CREATE POLICY "Departments are viewable by anyone"
   ON public.departments FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Departments are editable by authenticated users" ON public.departments;
 CREATE POLICY "Departments are editable by authenticated users"
   ON public.departments FOR ALL
   TO authenticated
@@ -99,10 +104,12 @@ CREATE TABLE IF NOT EXISTS public.areas (
 
 ALTER TABLE public.areas ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Areas are viewable by anyone" ON public.areas;
 CREATE POLICY "Areas are viewable by anyone"
   ON public.areas FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Areas can be managed by authenticated users" ON public.areas;
 CREATE POLICY "Areas can be managed by authenticated users"
   ON public.areas FOR ALL
   TO authenticated
@@ -127,11 +134,13 @@ CREATE TABLE IF NOT EXISTS public.officers (
 
 ALTER TABLE public.officers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Officers viewable by authenticated users" ON public.officers;
 CREATE POLICY "Officers viewable by authenticated users"
   ON public.officers FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Officers manageable by authenticated users" ON public.officers;
 CREATE POLICY "Officers manageable by authenticated users"
   ON public.officers FOR ALL
   TO authenticated
@@ -179,18 +188,22 @@ CREATE TABLE IF NOT EXISTS public.complaints (
 
 ALTER TABLE public.complaints ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Complaints are viewable by all" ON public.complaints;
 CREATE POLICY "Complaints are viewable by all"
   ON public.complaints FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Anyone can create complaints" ON public.complaints;
 CREATE POLICY "Anyone can create complaints"
   ON public.complaints FOR INSERT
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Authorized updates to complaints" ON public.complaints;
 CREATE POLICY "Authorized updates to complaints"
   ON public.complaints FOR UPDATE
   USING (true);
 
+DROP POLICY IF EXISTS "Only authorized admin can delete complaints" ON public.complaints;
 CREATE POLICY "Only authorized admin can delete complaints"
   ON public.complaints FOR DELETE
   TO authenticated
@@ -210,14 +223,17 @@ CREATE TABLE IF NOT EXISTS public.complaint_media (
 
 ALTER TABLE public.complaint_media ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Complaint media viewable by all" ON public.complaint_media;
 CREATE POLICY "Complaint media viewable by all"
   ON public.complaint_media FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Complaint media insertable by anyone" ON public.complaint_media;
 CREATE POLICY "Complaint media insertable by anyone"
   ON public.complaint_media FOR INSERT
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Complaint media deletable by authenticated users" ON public.complaint_media;
 CREATE POLICY "Complaint media deletable by authenticated users"
   ON public.complaint_media FOR DELETE
   TO authenticated
@@ -237,14 +253,17 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Notifications viewable by anyone" ON public.notifications;
 CREATE POLICY "Notifications viewable by anyone"
   ON public.notifications FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Notifications insertable by anyone" ON public.notifications;
 CREATE POLICY "Notifications insertable by anyone"
   ON public.notifications FOR INSERT
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Notifications updatable by anyone" ON public.notifications;
 CREATE POLICY "Notifications updatable by anyone"
   ON public.notifications FOR UPDATE
   USING (true);
@@ -261,11 +280,13 @@ CREATE TABLE IF NOT EXISTS public.activity_logs (
 
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Activity logs viewable by authenticated users" ON public.activity_logs;
 CREATE POLICY "Activity logs viewable by authenticated users"
   ON public.activity_logs FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Activity logs insertable by anyone" ON public.activity_logs;
 CREATE POLICY "Activity logs insertable by anyone"
   ON public.activity_logs FOR INSERT
   WITH CHECK (true);
@@ -286,10 +307,12 @@ CREATE TABLE IF NOT EXISTS public.officer_activity_logs (
 
 ALTER TABLE public.officer_activity_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Officer activity logs viewable by anyone" ON public.officer_activity_logs;
 CREATE POLICY "Officer activity logs viewable by anyone"
   ON public.officer_activity_logs FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Officer activity logs insertable by anyone" ON public.officer_activity_logs;
 CREATE POLICY "Officer activity logs insertable by anyone"
   ON public.officer_activity_logs FOR INSERT
   WITH CHECK (true);
@@ -306,10 +329,12 @@ CREATE TABLE IF NOT EXISTS public.feedback (
 
 ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Feedback viewable by anyone" ON public.feedback;
 CREATE POLICY "Feedback viewable by anyone"
   ON public.feedback FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Feedback insertable by anyone" ON public.feedback;
 CREATE POLICY "Feedback insertable by anyone"
   ON public.feedback FOR INSERT
   WITH CHECK (true);
@@ -321,10 +346,12 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('complaint-media', 'complaint-media', true)
 ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS "Allow public read access on complaint-media" ON storage.objects;
 CREATE POLICY "Allow public read access on complaint-media"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'complaint-media');
 
+DROP POLICY IF EXISTS "Allow upload access on complaint-media" ON storage.objects;
 CREATE POLICY "Allow upload access on complaint-media"
   ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'complaint-media');

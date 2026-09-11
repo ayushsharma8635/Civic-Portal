@@ -17,11 +17,12 @@
   },
   "include": [
     "src/components/**/*.js",
+    "src/components/**/*.jsx",
     "src/pages/**/*.jsx",
     "src/Layout.jsx",
     "src/App.jsx",
     "src/main.jsx",
     "src/**/*.d.ts"
   ],
-  "exclude": ["node_modules", "dist", "src/vite-plugins", "src/components/ui", "src/api", "src/lib"]
+  "exclude": ["node_modules", "dist", "src/vite-plugins"]
 } 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Loader2, Eye, Save, Filter, AlertTriangle, Lightbulb, MapPin, Trash2 } from 'lucide-react';
 import moment from 'moment';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import { showToast } from '@/lib/toast';
 import StatusBadge from '@/components/StatusBadge';
 import { isComplaintDelayed } from '@/lib/resolutionConfig';
@@ -43,10 +43,10 @@ export default function AdminComplaints() {
     setLoading(true);
     try {
       const [cl, dl, al, ol] = await Promise.all([
-        base44.entities.Complaint.list('-created_date', 500),
-        base44.entities.Department.list(),
-        base44.entities.Area.list(),
-        base44.entities.Officer.filter({ status: 'Active' })
+        api.entities.Complaint.list('-created_date', 500),
+        api.entities.Department.list(),
+        api.entities.Area.list(),
+        api.entities.Officer.filter({ status: 'Active' })
       ]);
       setComplaints(cl.items || cl || []);
       setDepartments(dl.items || dl || []);
@@ -111,16 +111,16 @@ export default function AdminComplaints() {
         patch.temp_availability_time = manageForm.temp_availability_time;
         patch.temp_contact = manageForm.temp_contact;
       }
-      const updated = await base44.entities.Complaint.update(managing, patch);
+      const updated = await api.entities.Complaint.update(managing, patch);
       setComplaints((arr) => arr.map((x) => (x.id === managing ? { ...x, ...updated } : x)));
-      await base44.entities.Notification.create({
+      await api.entities.Notification.create({
         title: `Complaint ${manageForm.status}`,
         message: `Your complaint "${c.title}" was updated to ${manageForm.status}.`,
         type: 'status_update',
         complaint_id: managing
       });
       if (showTemp && manageForm.temporary_solution) {
-        await base44.entities.Notification.create({
+        await api.entities.Notification.create({
           title: 'Temporary solution available',
           message: `A temporary solution has been provided for "${c.title}".`,
           type: 'remark',
@@ -128,7 +128,7 @@ export default function AdminComplaints() {
         });
       }
       if (manageForm.officer_id && manageForm.officer_id !== (c.officer_id || '')) {
-        await base44.entities.Notification.create({
+        await api.entities.Notification.create({
           title: 'New Complaint Assigned',
           message: `Complaint "${c.title}" has been assigned to you.`,
           type: 'assignment',
@@ -136,7 +136,7 @@ export default function AdminComplaints() {
           officer_id: manageForm.officer_id,
         });
       }
-      await base44.entities.ActivityLog.create({ action: 'update_status', entity: 'Complaint', entity_id: managing, details: `Status -> ${manageForm.status}` });
+      await api.entities.ActivityLog.create({ action: 'update_status', entity: 'Complaint', entity_id: managing, details: `Status -> ${manageForm.status}` });
       showToast('Complaint updated', 'success');
       setManaging(null);
     } catch (e) {
@@ -146,9 +146,9 @@ export default function AdminComplaints() {
 
   const deleteComplaint = async () => {
     try {
-      await base44.entities.Complaint.delete(deleting.id);
+      await api.entities.Complaint.delete(deleting.id);
       setComplaints((arr) => arr.filter((x) => x.id !== deleting.id));
-      await base44.entities.ActivityLog.create({ action: 'delete_complaint', entity: 'Complaint', entity_id: deleting.id, details: `Deleted spam complaint: ${deleting.title}` });
+      await api.entities.ActivityLog.create({ action: 'delete_complaint', entity: 'Complaint', entity_id: deleting.id, details: `Deleted spam complaint: ${deleting.title}` });
       showToast('Spam complaint deleted', 'success');
     } catch (e) {
       showToast('Delete failed: ' + e.message, 'error');

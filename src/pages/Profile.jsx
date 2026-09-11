@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Mail, Shield, Save, Loader2, AlertCircle } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import { showToast } from '@/lib/toast';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,10 +12,10 @@ export default function Profile() {
   const [name, setName] = useState('');
   const [role, setRole] = useState('citizen');
   const [saving, setSaving] = useState(false);
-  const isDemo = base44.auth.isDemoMode();
+  const isDemo = api.auth.isDemoMode();
 
   useEffect(() => {
-    base44.auth.me().then((u) => {
+    api.auth.me().then((u) => {
       setUser(u);
       setName(u?.full_name || '');
       setRole(u?.role || 'citizen');
@@ -25,7 +25,7 @@ export default function Profile() {
   const save = async () => {
     setSaving(true);
     try {
-      const updated = await base44.auth.updateMe({ full_name: name, role });
+      const updated = await api.auth.updateMe({ full_name: name, role });
       const roleChanged = user?.role !== updated.role;
       setUser(updated);
       showToast('Profile updated successfully', 'success');

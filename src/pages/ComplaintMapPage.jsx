@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import ComplaintMap from '@/components/ComplaintMap';
 import { Card, CardContent } from '@/components/ui/card';
 import { showToast } from '@/lib/toast';
@@ -12,7 +12,7 @@ export default function ComplaintMapPage() {
   useEffect(() => {
     (async () => {
       try {
-        const list = await base44.entities.Complaint.list('-created_date', 300);
+        const list = await api.entities.Complaint.list('-created_date', 300);
         const all = list.items || list || [];
         setComplaints(all.filter((c) => c.latitude != null && c.longitude != null));
       } catch (e) {

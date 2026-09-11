@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Camera, Video, Upload, X, Loader2, Film } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/supabaseClient";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 
@@ -44,7 +44,7 @@ export default function EvidenceCapture({ media, onMediaChange }) {
     if (!validate(file, isVideo)) return;
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const { file_url } = await api.integrations.Core.UploadFile({ file });
       const item = {
         media_type: isVideo ? "video" : "photo",
         file_url,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Bell, Check, CheckCheck, Trash2, X } from "lucide-react";
 import moment from "moment";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/supabaseClient";
 import { Button } from "@/components/ui/button";
 
 export default function NotificationBell() {
@@ -12,14 +12,14 @@ export default function NotificationBell() {
 
   const load = async () => {
     try {
-      const user = await base44.auth.me();
-      const complaintsRes = await base44.entities.Complaint.list("-created_date", 500);
+      const user = await api.auth.me();
+      const complaintsRes = await api.entities.Complaint.list("-created_date", 500);
       const myComplaintIds = new Set(
         (complaintsRes.items || complaintsRes || [])
           .filter((c) => c.created_by_id === user.id)
           .map((c) => c.id)
       );
-      const res = await base44.entities.Notification.list("-created_date", 50);
+      const res = await api.entities.Notification.list("-created_date", 50);
       const all = res.items || res || [];
       setNotifications(all.filter((n) => !n.complaint_id || myComplaintIds.has(n.complaint_id)));
     } catch {
@@ -31,7 +31,7 @@ export default function NotificationBell() {
 
   useEffect(() => {
     load();
-    const unsub = base44.entities.Notification.subscribe(() => load());
+    const unsub = api.entities.Notification.subscribe(() => load());
     return unsub;
   }, []);
 
@@ -47,7 +47,7 @@ export default function NotificationBell() {
 
   const markRead = async (id) => {
     try {
-      await base44.entities.Notification.update(id, { is_read: true });
+      await api.entities.Notification.update(id, { is_read: true });
       setNotifications((ns) => ns.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
     } catch {}
   };
@@ -56,14 +56,14 @@ export default function NotificationBell() {
     const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
     if (!unreadIds.length) return;
     try {
-      await base44.entities.Notification.bulkUpdate(unreadIds.map((id) => ({ id, is_read: true })));
+      await api.entities.Notification.bulkUpdate(unreadIds.map((id) => ({ id, is_read: true })));
       setNotifications((ns) => ns.map((n) => ({ ...n, is_read: true })));
     } catch {}
   };
 
   const remove = async (id) => {
     try {
-      await base44.entities.Notification.delete(id);
+      await api.entities.Notification.delete(id);
       setNotifications((ns) => ns.filter((n) => n.id !== id));
     } catch {}
   };
@@ -71,7 +71,7 @@ export default function NotificationBell() {
   const clearAll = async () => {
     if (!notifications.length) return;
     try {
-      await base44.entities.Notification.deleteMany({});
+      await api.entities.Notification.deleteMany({});
       setNotifications([]);
     } catch {}
   };

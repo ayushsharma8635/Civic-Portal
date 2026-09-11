@@ -7,7 +7,7 @@ import {
   PieChart, Pie, Cell
 } from 'recharts';
 import moment from 'moment';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import StatCard from '@/components/StatCard';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { showToast } from '@/lib/toast';
@@ -24,8 +24,8 @@ export default function AdminDashboard() {
   const load = async () => {
     try {
       const [cl, dl] = await Promise.all([
-        base44.entities.Complaint.list('-created_date', 500),
-        base44.entities.Department.list()
+        api.entities.Complaint.list('-created_date', 500),
+        api.entities.Department.list()
       ]);
       setComplaints(cl.items || cl || []);
       setDepartments(dl.items || dl || []);
@@ -38,7 +38,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     load();
-    const unsub = base44.entities.Complaint.subscribe(() => load());
+    const unsub = api.entities.Complaint.subscribe(() => load());
     return unsub;
   }, []);
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Pencil, Power, Trash2, Loader2, Search, KeyRound } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import { showToast } from '@/lib/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,9 +30,9 @@ export default function AdminOfficers() {
     setLoading(true);
     try {
       const [ol, al, dl] = await Promise.all([
-        base44.entities.Officer.list('-name', 500),
-        base44.entities.Area.filter({ active: true }),
-        base44.entities.Department.list(),
+        api.entities.Officer.list('-name', 500),
+        api.entities.Area.filter({ active: true }),
+        api.entities.Department.list(),
       ]);
       setOfficers(ol.items || ol || []);
       setAreas(al.items || al || []);
@@ -66,7 +66,7 @@ export default function AdminOfficers() {
     }
     setSaving(true);
     try {
-      const res = await base44.functions.invoke('saveOfficer', {
+      const res = await api.functions.invoke('saveOfficer', {
         officer_id: editing === 'new' ? '' : editing,
         name: form.name.trim(),
         employee_id: form.employee_id,
@@ -103,7 +103,7 @@ export default function AdminOfficers() {
 
   const toggleActive = async (o) => {
     try {
-      const res = await base44.functions.invoke('saveOfficer', {
+      const res = await api.functions.invoke('saveOfficer', {
         officer_id: o.id, name: o.name, employee_id: o.employee_id, email: o.email,
         mobile: o.mobile, username: o.username, department: o.department,
         area_id: o.area_id, area_name: o.area_name, designation: o.designation,
@@ -125,7 +125,7 @@ export default function AdminOfficers() {
       return;
     }
     try {
-      await base44.functions.invoke('saveOfficer', {
+      await api.functions.invoke('saveOfficer', {
         officer_id: resetting.id, name: resetting.name, employee_id: resetting.employee_id,
         email: resetting.email, mobile: resetting.mobile, username: resetting.username,
         department: resetting.department, area_id: resetting.area_id, area_name: resetting.area_name,
@@ -141,7 +141,7 @@ export default function AdminOfficers() {
 
   const remove = async () => {
     try {
-      await base44.entities.Officer.delete(deleting.id);
+      await api.entities.Officer.delete(deleting.id);
       setOfficers((arr) => arr.filter((x) => x.id !== deleting.id));
       showToast('Officer deleted', 'success');
     } catch (e) {

@@ -759,11 +759,13 @@ const integrations = {
 };
 
 // Unified Export
-export const base44 = {
+export const api = {
   auth,
   entities,
   functions,
   integrations,
 };
+
+export { entities, auth, functions, integrations };
 
 export default supabase;

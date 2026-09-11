@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertTriangle, FileText,
 } from 'lucide-react';
 import moment from 'moment';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import { getOfficerSession } from '@/lib/officerSession';
 import { showToast } from '@/lib/toast';
 import StatusBadge from '@/components/StatusBadge';
@@ -47,7 +47,7 @@ export default function OfficerComplaintDetail() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await base44.functions.invoke('officerPortal', { officer_id: officer.id, action: 'complaint_detail', complaint_id: id });
+      const res = await api.functions.invoke('officerPortal', { officer_id: officer.id, action: 'complaint_detail', complaint_id: id });
       setData(res.data || res);
       setNewStatus(res.data?.complaint?.status || res.complaint?.status || '');
     } catch {
@@ -66,7 +66,7 @@ export default function OfficerComplaintDetail() {
     }
     setUpdating(true);
     try {
-      const res = await base44.functions.invoke('officerPortal', {
+      const res = await api.functions.invoke('officerPortal', {
         officer_id: officer.id, action: 'update_status',
         complaint_id: id, new_status: newStatus, remarks,
       });
@@ -86,7 +86,7 @@ export default function OfficerComplaintDetail() {
     setUploading(true);
     try {
       const file_data = await readFileAsDataURL(file);
-      await base44.functions.invoke('officerUploadEvidence', {
+      await api.functions.invoke('officerUploadEvidence', {
         officer_id: officer.id, complaint_id: id,
         phase, file_data, file_name: file.name, file_type: file.type,
       });

@@ -8,7 +8,7 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 import moment from 'moment';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import StatCard from '@/components/StatCard';
 import StatusBadge from '@/components/StatusBadge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -26,9 +26,9 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        const u = await base44.auth.me();
+        const u = await api.auth.me();
         setUser(u);
-        const list = await base44.entities.Complaint.filter({ created_by_id: u.id }, '-created_date', 200);
+        const list = await api.entities.Complaint.filter({ created_by_id: u.id }, '-created_date', 200);
         setComplaints(list.items || list || []);
       } catch (e) {
         showToast('Could not load complaints: ' + e.message, 'error');

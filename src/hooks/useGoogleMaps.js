@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 
 let cachedApiKey = null;
 let scriptPromise = null;
@@ -30,7 +30,7 @@ export function useGoogleMaps() {
     (async () => {
       try {
         if (!cachedApiKey) {
-          const res = await base44.functions.invoke('getMapsConfig', {});
+          const res = await api.functions.invoke('getMapsConfig', {});
           cachedApiKey = (res.data || res).apiKey;
         }
         await loadGoogleMapsScript(cachedApiKey);

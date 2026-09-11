@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { Menu, LogOut, ShieldCheck, User } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import Sidebar from '@/components/Sidebar';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
@@ -13,17 +13,17 @@ export default function Layout() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => setUser(null));
+    api.auth.me().then(setUser).catch(() => setUser(null));
   }, []);
 
   const handleLogout = async () => {
-    await base44.auth.logout();
+    await api.auth.logout();
     window.location.href = '/login';
   };
 
   const handleToggleRole = async () => {
     const nextRole = user?.role === 'admin' ? 'citizen' : 'admin';
-    const updated = await base44.auth.updateMe({ role: nextRole });
+    const updated = await api.auth.updateMe({ role: nextRole });
     setUser(updated);
     if (nextRole === 'admin') {
       navigate('/admin');

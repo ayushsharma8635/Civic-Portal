@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Search, MapPin, Loader2 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/supabaseClient";
 import { Input } from "@/components/ui/input";
 
 export default function AreaSearch({ value, onSelect }) {
@@ -15,7 +15,7 @@ export default function AreaSearch({ value, onSelect }) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await base44.entities.Area.list();
+        const res = await api.entities.Area.list();
         const list = res.items || res || [];
         setAreas(list);
         setFiltered(list);

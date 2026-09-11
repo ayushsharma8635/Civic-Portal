@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { base44, supabase } from '@/api/supabaseClient';
+import { api, supabase } from '@/api/supabaseClient';
 
 /**
  * @typedef {Object} AuthContextType
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      const currentUser = await base44.auth.me();
+      const currentUser = await api.auth.me();
       setUser(currentUser);
       setIsAuthenticated(true);
       setAuthError(null);
@@ -109,11 +109,11 @@ export const AuthProvider = ({ children }) => {
   const logout = async (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
-    await base44.auth.logout(shouldRedirect ? '/login' : null);
+    await api.auth.logout(shouldRedirect ? '/login' : null);
   };
 
   const navigateToLogin = () => {
-    base44.auth.redirectToLogin(window.location.pathname + window.location.search);
+    api.auth.redirectToLogin(window.location.pathname + window.location.search);
   };
 
   return (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Plus, Pencil, Trash2, Loader2, Search } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import { showToast } from '@/lib/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ export default function AdminAreas() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await base44.entities.Area.list('-name', 500);
+      const res = await api.entities.Area.list('-name', 500);
       setAreas(res.items || res || []);
     } catch (e) {
       showToast('Failed to load: ' + e.message, 'error');
@@ -68,13 +68,13 @@ export default function AdminAreas() {
         active: form.active,
       };
       if (editing === 'new') {
-        const created = await base44.entities.Area.create(payload);
+        const created = await api.entities.Area.create(payload);
         setAreas((arr) => [...arr, created]);
       } else {
-        const updated = await base44.entities.Area.update(editing, payload);
+        const updated = await api.entities.Area.update(editing, payload);
         setAreas((arr) => arr.map((a) => (a.id === editing ? { ...a, ...updated } : a)));
       }
-      await base44.entities.ActivityLog.create({ action: editing === 'new' ? 'create_area' : 'update_area', entity: 'Area', entity_id: editing === 'new' ? '' : editing, details: `Area: ${payload.name}` });
+      await api.entities.ActivityLog.create({ action: editing === 'new' ? 'create_area' : 'update_area', entity: 'Area', entity_id: editing === 'new' ? '' : editing, details: `Area: ${payload.name}` });
       showToast('Area saved', 'success');
       setEditing(null);
     } catch (e) {
@@ -86,7 +86,7 @@ export default function AdminAreas() {
 
   const toggleActive = async (a) => {
     try {
-      const updated = await base44.entities.Area.update(a.id, { active: !a.active });
+      const updated = await api.entities.Area.update(a.id, { active: !a.active });
       setAreas((arr) => arr.map((x) => (x.id === a.id ? { ...x, ...updated } : x)));
       showToast(`${a.name} ${updated.active ? 'activated' : 'deactivated'}`, 'success');
     } catch (e) {
@@ -96,7 +96,7 @@ export default function AdminAreas() {
 
   const remove = async () => {
     try {
-      await base44.entities.Area.delete(deleting.id);
+      await api.entities.Area.delete(deleting.id);
       setAreas((arr) => arr.filter((x) => x.id !== deleting.id));
       showToast('Area deleted', 'success');
     } catch (e) {

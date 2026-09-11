@@ -4,7 +4,7 @@ import {
   Search, MapPin, QrCode, Star, Clock, Building2, Loader2, AlertTriangle, Lightbulb, Calendar, FileText,
 } from "lucide-react";
 import moment from "moment";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/supabaseClient";
 import { showToast } from "@/lib/toast";
 import ComplaintMap from "@/components/ComplaintMap";
 import StatusBadge from "@/components/StatusBadge";
@@ -37,23 +37,23 @@ export default function ComplaintTracking() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
+    api.auth.me().then(setUser).catch(() => {});
   }, []);
 
   const load = async (id) => {
     if (!id) return;
     setLoading(true);
     try {
-      const c = await base44.entities.Complaint.get(id);
+      const c = await api.entities.Complaint.get(id);
       setComplaint(c);
       try {
-        const res = await base44.entities.ComplaintMedia.filter({ complaint_id: id });
+        const res = await api.entities.ComplaintMedia.filter({ complaint_id: id });
         setMediaList(res.items || res || []);
       } catch {
         setMediaList([]);
       }
       try {
-        const fbs = await base44.entities.Feedback.filter({ complaint_id: id });
+        const fbs = await api.entities.Feedback.filter({ complaint_id: id });
         const arr = fbs.items || fbs || [];
         if (arr.length) setExistingFeedback(arr[0]);
       } catch {}
@@ -81,7 +81,7 @@ export default function ComplaintTracking() {
     }
     setSubmittingFb(true);
     try {
-      const created = await base44.entities.Feedback.create({
+      const created = await api.entities.Feedback.create({
         complaint_id: complaint.id, rating: feedback.rating, comment: feedback.comment,
       });
       setExistingFeedback(created);

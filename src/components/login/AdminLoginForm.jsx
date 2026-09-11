@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,11 +39,11 @@ export default function AdminLoginForm({ onBack }) {
     setError('');
     setLoading(true);
     try {
-      await base44.auth.loginViaEmailPassword(email, password);
-      const user = await base44.auth.me();
+      await api.auth.loginViaEmailPassword(email, password);
+      const user = await api.auth.me();
       if (user.role !== 'admin') {
         sessionStorage.setItem('admin_login_error', 'This account does not have admin access.');
-        base44.auth.logout('/login?role=admin');
+        api.auth.logout('/login?role=admin');
         return;
       }
       window.location.href = '/admin';
@@ -57,11 +57,11 @@ export default function AdminLoginForm({ onBack }) {
   const handleGoogle = async () => {
     setError('');
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem('scms_google_client_id');
-    if (googleClientId || base44.auth.isDemoMode()) {
+    if (googleClientId || api.auth.isDemoMode()) {
       setShowGoogleModal(true);
     } else {
       try {
-        await base44.auth.loginWithProvider('google', '/admin');
+        await api.auth.loginWithProvider('google', '/admin');
       } catch (err) {
         setError(err.message || 'Failed to initiate Google sign in');
         setShowGoogleModal(true);

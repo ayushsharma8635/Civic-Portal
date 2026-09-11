@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,7 +25,7 @@ export default function OfficerLoginForm({ onBack }) {
     }
     setLoading(true);
     try {
-      const res = await base44.functions.invoke('officerLogin', { username, password });
+      const res = await api.functions.invoke('officerLogin', { username, password });
       const data = res.data || res;
       if (data.officer) {
         setOfficerSession(data.officer);

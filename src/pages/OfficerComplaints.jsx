@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Eye, Loader2, Filter } from 'lucide-react';
 import moment from 'moment';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import { getOfficerSession } from '@/lib/officerSession';
 import StatusBadge from '@/components/StatusBadge';
 import { isComplaintDelayed } from '@/lib/resolutionConfig';
@@ -24,7 +24,7 @@ export default function OfficerComplaints() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await base44.functions.invoke('officerPortal', { officer_id: officer.id, action: 'complaints', status: statusFilter });
+      const res = await api.functions.invoke('officerPortal', { officer_id: officer.id, action: 'complaints', status: statusFilter });
       const data = res.data || res;
       setComplaints(data.complaints || []);
     } catch {

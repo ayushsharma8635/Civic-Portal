@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Pencil, Trash2, Loader2, Inbox } from 'lucide-react';
 import moment from 'moment';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import { showToast } from '@/lib/toast';
 import StatusBadge from '@/components/StatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,9 +31,9 @@ export default function ComplaintHistory() {
   const load = async () => {
     setLoading(true);
     try {
-      const u = await base44.auth.me();
+      const u = await api.auth.me();
       setUser(u);
-      const list = await base44.entities.Complaint.filter({ created_by_id: u.id }, '-created_date', 200);
+      const list = await api.entities.Complaint.filter({ created_by_id: u.id }, '-created_date', 200);
       setComplaints(list.items || list || []);
     } catch (e) {
       showToast('Failed to load: ' + e.message, 'error');
@@ -59,7 +59,7 @@ export default function ComplaintHistory() {
 
   const saveEdit = async () => {
     try {
-      await base44.entities.Complaint.update(editing, {
+      await api.entities.Complaint.update(editing, {
         title: editForm.title, description: editForm.description, category: editForm.category, location: editForm.location
       });
       showToast('Complaint updated', 'success');
@@ -73,7 +73,7 @@ export default function ComplaintHistory() {
   const remove = async (c) => {
     if (!confirm('Delete this complaint? This cannot be undone.')) return;
     try {
-      await base44.entities.Complaint.delete(c.id);
+      await api.entities.Complaint.delete(c.id);
       showToast('Complaint deleted', 'success');
       load();
     } catch (e) {

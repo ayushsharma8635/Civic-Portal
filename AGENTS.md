@@ -2,33 +2,26 @@
 
 ## Project Context
 
-This is a Base44 app repository. Treat it as user-owned application code, keep changes focused on the user's request, and preserve existing project conventions.
+This is the **Civic Portal** — a React + Vite single-page application deployed on Vercel with Supabase as the backend. It provides a smart local grievance redressal and municipal complaint tracking system.
 
-Start with `README.md` for local setup, environment variables, and publish workflow.
-
-## Base44 References
-
-- CLI overview: https://docs.base44.com/developers/references/cli/get-started/overview.md
-- Agent skills: https://docs.base44.com/developers/backend/overview/skills.md
-
-If your agent supports Agent Skills, install or update Base44 skills before Base44-specific work:
-
-```bash
-npx skills add base44/skills
-```
+Start with `README.md` for local setup, environment variables, and deployment workflow.
 
 ## Key Files
 
-- `src/`: frontend application source.
-- `src/api/base44Client.js`: frontend Base44 SDK client.
-- `vite.config.js`: Vite config and Base44 Vite plugin setup.
-- `.env.local`: local-only environment values; never commit secrets.
+- `src/` — Frontend application source (React, Tailwind CSS)
+- `src/api/supabaseClient.js` — Supabase client, entity repositories, auth, and API layer
+- `src/lib/AuthContext.jsx` — React auth context provider
+- `vite.config.js` — Vite build configuration
+- `vercel.json` — Vercel SPA rewrite and headers
+- `.env.example` — Required environment variables template
+- `supabase/schema.sql` — Database schema and RLS policies
 
 ## Working Notes
 
-- Use `base44 dev` as the default local development command when you need the local Base44 backend. It can run the backend and frontend together.
-- When docs or code mention the frontend being started automatically, that usually means the Base44 project config includes `site.serveCommand`, for example `"serveCommand": "npm run dev"` in `base44/config.jsonc`.
-- Use `npm run dev` only for frontend-only work against the hosted Base44 backend.
-- Prefer the existing Base44 CLI workflow over adding new npm scripts for Base44-specific tasks.
-- Reuse the existing SDK client and Vite plugin patterns before adding new Base44 integration paths.
-- Run the relevant checks from `package.json` before finishing code changes.
+- Use `npm run dev` to start the Vite development server locally.
+- Use `npm run build` to produce the production build in `dist/`.
+- Use `npm run lint` to check for ESLint errors.
+- Supabase credentials must be set via `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` environment variables (in `.env.local` locally, or in Vercel project settings for production).
+- The app gracefully falls back to localStorage mock data when Supabase is not configured, enabling offline demo mode.
+- Three user roles: **Citizen**, **Field Officer**, **Admin**.
+- Do not modify the Google Sign-In singleton initialization pattern in `GoogleSignInModal.jsx` unless necessary.

@@ -1,77 +1,87 @@
-# Base44 Project
+# Civic Portal
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
+Smart Local Grievance Redressal and Municipal Complaint Tracking System built with React, Vite, Tailwind CSS, and Supabase. Deployed on Vercel.
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+## Features
+
+- **Citizens** can submit complaints, track status, view history, and receive notifications
+- **Field Officers** can view assigned complaints, update status, and upload evidence
+- **Admins** can manage complaints, areas, departments, officers, and view analytics
+- Smart complaint categorization and department routing
+- Google Maps integration for location-based complaints
+- PDF receipt generation for submitted complaints
+- Real-time notifications and status updates
+- Google Sign-In authentication
 
 ## Prerequisites
 
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
-
-See the [Base44 CLI docs](https://docs.base44.com/developers/references/cli/get-started/overview) if you want to run Base44 commands directly.
-
-## Run Locally
-
-Run the full local development environment from the project root:
+1. [Node.js](https://nodejs.org/) v18+ installed
+2. A [Supabase](https://supabase.com/) project (free tier works)
+3. Clone this repository and navigate to the project directory
+4. Install dependencies:
 
 ```bash
-base44 dev
+npm install
 ```
 
-`base44 dev` starts the local Base44 development backend and, when this app is configured for it, also starts the frontend dev server for you. Use the frontend URL printed by the command.
+## Environment Variables
 
-For example, when the Base44 project config includes a `serveCommand`, `base44 dev` can launch the frontend too:
+Copy `.env.example` to `.env.local` and fill in your values:
 
-```json5
-{
-  "site": {
-    "serveCommand": "npm run dev"
-  }
-}
+```bash
+cp .env.example .env.local
 ```
 
-In a Base44 project this lives in `base44/config.jsonc`.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_SUPABASE_URL` | Yes | Your Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Yes | Your Supabase anon/public API key |
+| `VITE_GOOGLE_MAPS_API_KEY` | No | Google Maps API key for map features |
+| `VITE_GOOGLE_CLIENT_ID` | No | Google OAuth client ID for Google Sign-In |
 
-## Run Only The Frontend
+> **Note:** Without Supabase credentials, the app runs in demo mode using localStorage for data persistence.
 
-If you only want to work on the frontend against the hosted Base44 backend, run:
+## Run Locally
 
 ```bash
 npm run dev
 ```
 
-Open the local URL printed by Vite.
+Open the URL printed by Vite (default: http://localhost:5173).
 
-## Use The Hosted Backend
-
-For frontend-only development, create or update `.env.local` in the project root:
+## Build for Production
 
 ```bash
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=https://your-app.base44.app
+npm run build
 ```
 
-`VITE_BASE44_APP_ID` identifies the Base44 app.
+The production build is output to the `dist/` directory.
 
-`VITE_BASE44_APP_BASE_URL` tells the Base44 Vite plugin where to send local `/api` requests. Point it at your deployed Base44 app URL when you want the local frontend to use the hosted backend.
+## Deploy to Vercel
 
-When you use `base44 dev`, the command injects the local Base44 values for you, so `.env.local` is mainly needed for frontend-only workflows.
+1. Push your code to GitHub
+2. Import the repository in [Vercel](https://vercel.com/)
+3. Set the environment variables in Vercel project settings
+4. Vercel auto-detects Vite and deploys
 
-## Publish Your Changes
+## Database Setup
 
-After pushing your changes to git, open the Base44 dashboard and publish the app:
+Run the SQL in `supabase/schema.sql` in your Supabase SQL Editor to create all required tables, indexes, and Row Level Security policies.
 
-```bash
-base44 dashboard open
+## Project Structure
+
+```
+src/
+├── api/           # Supabase client and API layer
+├── components/    # Reusable React components
+│   ├── login/     # Login form components per role
+│   └── ui/        # Shadcn/ui component library
+├── hooks/         # Custom React hooks
+├── lib/           # Auth context, utilities, PDF generation
+├── pages/         # Page-level route components
+└── utils/         # Helper utilities
 ```
 
-## Docs & Support
+## License
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
-
-Base44 CLI command reference: [https://docs.base44.com/developers/references/cli/commands/introduction](https://docs.base44.com/developers/references/cli/commands/introduction)
-
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+Private project.

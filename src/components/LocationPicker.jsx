@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, MapPin, Crosshair, Loader2, Check } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/supabaseClient';
 import { useGoogleMaps } from '@/hooks/useGoogleMaps';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,7 @@ export default function LocationPicker({ onSelect }) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await base44.entities.Area.filter({ active: true });
+        const res = await api.entities.Area.filter({ active: true });
         setAreas(res.items || res || []);
       } catch {
         setAreas([]);

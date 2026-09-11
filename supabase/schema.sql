@@ -1,68 +1,64 @@
 -- ==============================================================================
--- SMART COMPLAINT MANAGEMENT SYSTEM - SUPABASE DATABASE SCHEMA
--- ==============================================================================
--- Run this entire script in your Supabase project's SQL Editor:
--- https://app.supabase.com -> Project -> SQL Editor -> New Query -> Run
+-- Civic Portal - Supabase Complete Database Schema & Security
 -- ==============================================================================
 
--- Enable UUID extension if not enabled
+-- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ------------------------------------------------------------------------------
--- 1. PROFILES TABLE (Linked to auth.users)
--- ------------------------------------------------------------------------------
+-- 1. PROFILES TABLE (Linked with Supabase Auth)
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT,
   full_name TEXT,
-  role TEXT DEFAULT 'citizen' CHECK (role IN ('citizen', 'admin')),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  role TEXT NOT NULL DEFAULT 'citizen' CHECK (role IN ('citizen', 'officer', 'admin')),
+  avatar_url TEXT,
+  phone TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- Trigger to automatically create a profile when a new user registers via Supabase Auth
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email, full_name, role)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'citizen')
-  )
-  ON CONFLICT (id) DO UPDATE
-  SET
-    email = EXCLUDED.email,
-    full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name),
-    updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT OR UPDATE ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+CREATE POLICY "Public profiles are viewable by authenticated users"
+  ON public.profiles FOR SELECT
+  TO authenticated
+  USING (true);
 
--- ------------------------------------------------------------------------------
+CREATE POLICY "Users can insert their own profile"
+  ON public.profiles FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Users can update their own profile"
+  ON public.profiles FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = id);
+
 -- 2. DEPARTMENTS TABLE
--- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.departments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT NOT NULL UNIQUE,
+  id TEXT PRIMARY KEY DEFAULT ('dept_' || substr(md5(random()::text), 1, 8)),
+  name TEXT NOT NULL,
   description TEXT,
   head TEXT,
   email TEXT,
   phone TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- ------------------------------------------------------------------------------
--- 3. AREAS / LOCALITIES TABLE
--- ------------------------------------------------------------------------------
+ALTER TABLE public.departments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Departments are viewable by anyone"
+  ON public.departments FOR SELECT
+  USING (true);
+
+CREATE POLICY "Departments are editable by authenticated users"
+  ON public.departments FOR ALL
+  TO authenticated
+  USING (true);
+
+-- 3. AREAS TABLE
 CREATE TABLE IF NOT EXISTS public.areas (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id TEXT PRIMARY KEY DEFAULT ('area_' || substr(md5(random()::text), 1, 8)),
   name TEXT NOT NULL,
   city TEXT DEFAULT 'Kanpur',
   ward TEXT,
@@ -70,254 +66,256 @@ CREATE TABLE IF NOT EXISTS public.areas (
   landmark TEXT,
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION,
-  active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- ------------------------------------------------------------------------------
+ALTER TABLE public.areas ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Areas are viewable by anyone"
+  ON public.areas FOR SELECT
+  USING (true);
+
+CREATE POLICY "Areas can be managed by authenticated users"
+  ON public.areas FOR ALL
+  TO authenticated
+  USING (true);
+
 -- 4. OFFICERS TABLE
--- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.officers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id TEXT PRIMARY KEY DEFAULT ('off_' || substr(md5(random()::text), 1, 8)),
   name TEXT NOT NULL,
-  employee_id TEXT,
+  employee_id TEXT UNIQUE,
   email TEXT,
   mobile TEXT,
-  username TEXT NOT NULL UNIQUE,
+  username TEXT UNIQUE NOT NULL,
   password_hash TEXT,
   department TEXT,
-  area_id TEXT,
   area_name TEXT,
+  area_id TEXT REFERENCES public.areas(id) ON DELETE SET NULL,
   designation TEXT,
-  profile_photo TEXT,
-  status TEXT DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive')),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive', 'On Leave')),
+  created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- ------------------------------------------------------------------------------
+ALTER TABLE public.officers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Officers viewable by authenticated users"
+  ON public.officers FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Officers manageable by authenticated users"
+  ON public.officers FOR ALL
+  TO authenticated
+  USING (true);
+
 -- 5. COMPLAINTS TABLE
--- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.complaints (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  complaint_code TEXT UNIQUE,
+  id TEXT PRIMARY KEY DEFAULT ('comp_' || substr(md5(random()::text), 1, 10)),
   title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  category TEXT NOT NULL,
-  priority TEXT DEFAULT 'Medium' CHECK (priority IN ('Low', 'Medium', 'High')),
-  status TEXT DEFAULT 'Pending' CHECK (status IN (
-    'Pending', 'In Review', 'Assigned', 'Accepted', 'Work Started',
-    'In Progress', 'Work Completed', 'Resolved', 'Rejected'
-  )),
-  location TEXT,
-  area TEXT,
+  description TEXT,
+  category TEXT,
+  department TEXT,
+  area_name TEXT,
   area_id TEXT,
-  location_name TEXT,
-  formatted_address TEXT,
-  google_place_id TEXT,
+  landmark TEXT,
+  address TEXT,
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION,
-  photo_url TEXT,
-  department TEXT,
-  officer_id TEXT,
-  officer_name TEXT,
-  remarks TEXT,
-  ai_summary TEXT,
-  is_spam BOOLEAN DEFAULT FALSE,
+  priority TEXT NOT NULL DEFAULT 'Medium' CHECK (priority IN ('Low', 'Medium', 'High', 'Urgent')),
+  status TEXT NOT NULL DEFAULT 'Submitted' CHECK (status IN ('Submitted', 'In Progress', 'Resolved', 'Rejected')),
+  is_spam BOOLEAN NOT NULL DEFAULT false,
   duplicate_of TEXT,
-  estimated_days INTEGER,
-  expected_date TIMESTAMPTZ,
-  actual_resolved_date TIMESTAMPTZ,
-  is_delayed BOOLEAN DEFAULT FALSE,
-  temporary_solution TEXT,
-  temp_alt_facility TEXT,
-  temp_alt_route TEXT,
-  temp_availability_time TEXT,
-  temp_contact TEXT,
-  timeline JSONB DEFAULT '[]'::jsonb,
+  ai_summary TEXT,
+  remarks TEXT,
+  officer_id TEXT,
   created_by_id TEXT,
-  created_by_email TEXT,
-  created_date TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  citizen_name TEXT,
+  citizen_email TEXT,
+  citizen_phone TEXT,
+  timeline JSONB DEFAULT '[]'::jsonb,
+  actual_resolved_date TIMESTAMPTZ,
+  created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- ------------------------------------------------------------------------------
+ALTER TABLE public.complaints ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Complaints are viewable by all"
+  ON public.complaints FOR SELECT
+  USING (true);
+
+CREATE POLICY "Anyone can create complaints"
+  ON public.complaints FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Authorized updates to complaints"
+  ON public.complaints FOR UPDATE
+  USING (true);
+
+CREATE POLICY "Authorized deletion of complaints"
+  ON public.complaints FOR DELETE
+  USING (true);
+
 -- 6. COMPLAINT MEDIA TABLE
--- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.complaint_media (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  complaint_id UUID REFERENCES public.complaints(id) ON DELETE CASCADE,
-  media_type TEXT DEFAULT 'photo' CHECK (media_type IN ('photo', 'video')),
+  id TEXT PRIMARY KEY DEFAULT ('media_' || substr(md5(random()::text), 1, 8)),
+  complaint_id TEXT REFERENCES public.complaints(id) ON DELETE CASCADE,
+  phase TEXT DEFAULT 'during' CHECK (phase IN ('before', 'during', 'after')),
   file_url TEXT NOT NULL,
   file_name TEXT,
-  phase TEXT DEFAULT 'citizen' CHECK (phase IN ('citizen', 'before', 'during', 'after')),
+  media_type TEXT DEFAULT 'photo',
   uploaded_by TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- ------------------------------------------------------------------------------
--- 7. FEEDBACK TABLE
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.feedback (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  complaint_id UUID REFERENCES public.complaints(id) ON DELETE CASCADE,
-  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-  comment TEXT,
-  created_by_id TEXT,
-  created_date TIMESTAMPTZ DEFAULT NOW()
-);
+ALTER TABLE public.complaint_media ENABLE ROW LEVEL SECURITY;
 
--- ------------------------------------------------------------------------------
--- 8. NOTIFICATIONS TABLE
--- ------------------------------------------------------------------------------
+CREATE POLICY "Complaint media viewable by all"
+  ON public.complaint_media FOR SELECT
+  USING (true);
+
+CREATE POLICY "Complaint media insertable by anyone"
+  ON public.complaint_media FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Complaint media deletable by authenticated users"
+  ON public.complaint_media FOR DELETE
+  TO authenticated
+  USING (true);
+
+-- 7. NOTIFICATIONS TABLE
 CREATE TABLE IF NOT EXISTS public.notifications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id TEXT PRIMARY KEY DEFAULT ('notif_' || substr(md5(random()::text), 1, 8)),
   title TEXT NOT NULL,
   message TEXT NOT NULL,
-  type TEXT DEFAULT 'system' CHECK (type IN ('status_update', 'remark', 'system', 'assignment')),
-  is_read BOOLEAN DEFAULT FALSE,
+  type TEXT DEFAULT 'status_update',
   complaint_id TEXT,
-  officer_id TEXT,
   user_id TEXT,
-  created_date TIMESTAMPTZ DEFAULT NOW()
+  read BOOLEAN NOT NULL DEFAULT false,
+  created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- ------------------------------------------------------------------------------
--- 9. ACTIVITY LOGS (Admin Audit Trail)
--- ------------------------------------------------------------------------------
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Notifications viewable by anyone"
+  ON public.notifications FOR SELECT
+  USING (true);
+
+CREATE POLICY "Notifications insertable by anyone"
+  ON public.notifications FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Notifications updatable by anyone"
+  ON public.notifications FOR UPDATE
+  USING (true);
+
+-- 8. ACTIVITY LOGS TABLE
 CREATE TABLE IF NOT EXISTS public.activity_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id TEXT PRIMARY KEY DEFAULT ('act_' || substr(md5(random()::text), 1, 8)),
   action TEXT NOT NULL,
-  entity TEXT,
+  entity TEXT NOT NULL,
   entity_id TEXT,
   details TEXT,
-  created_date TIMESTAMPTZ DEFAULT NOW()
+  created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- ------------------------------------------------------------------------------
--- 10. OFFICER ACTIVITY LOGS
--- ------------------------------------------------------------------------------
+ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Activity logs viewable by authenticated users"
+  ON public.activity_logs FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Activity logs insertable by anyone"
+  ON public.activity_logs FOR INSERT
+  WITH CHECK (true);
+
+-- 9. OFFICER ACTIVITY LOGS TABLE
 CREATE TABLE IF NOT EXISTS public.officer_activity_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id TEXT PRIMARY KEY DEFAULT ('offact_' || substr(md5(random()::text), 1, 8)),
   officer_id TEXT NOT NULL,
   officer_name TEXT,
-  complaint_id TEXT,
+  complaint_id TEXT REFERENCES public.complaints(id) ON DELETE CASCADE,
   complaint_title TEXT,
   action TEXT NOT NULL,
   old_status TEXT,
   new_status TEXT,
   remarks TEXT,
-  created_date TIMESTAMPTZ DEFAULT NOW()
+  created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- ------------------------------------------------------------------------------
--- 11. STORAGE BUCKET FOR EVIDENCE MEDIA
--- ------------------------------------------------------------------------------
+ALTER TABLE public.officer_activity_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Officer activity logs viewable by anyone"
+  ON public.officer_activity_logs FOR SELECT
+  USING (true);
+
+CREATE POLICY "Officer activity logs insertable by anyone"
+  ON public.officer_activity_logs FOR INSERT
+  WITH CHECK (true);
+
+-- 10. FEEDBACK TABLE
+CREATE TABLE IF NOT EXISTS public.feedback (
+  id TEXT PRIMARY KEY DEFAULT ('fb_' || substr(md5(random()::text), 1, 8)),
+  complaint_id TEXT REFERENCES public.complaints(id) ON DELETE CASCADE,
+  user_id TEXT,
+  rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+  comments TEXT,
+  created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Feedback viewable by anyone"
+  ON public.feedback FOR SELECT
+  USING (true);
+
+CREATE POLICY "Feedback insertable by anyone"
+  ON public.feedback FOR INSERT
+  WITH CHECK (true);
+
+-- ==============================================================================
+-- STORAGE BUCKET CONFIGURATION
+-- ==============================================================================
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('complaint-media', 'complaint-media', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Policy to allow public read access to evidence media
-CREATE POLICY "Public Read Access"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'complaint-media');
+CREATE POLICY "Allow public read access on complaint-media"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'complaint-media');
 
--- Policy to allow authenticated and anon uploads to complaint-media bucket
-CREATE POLICY "Public or Authenticated Upload Access"
-ON storage.objects FOR INSERT
-WITH CHECK (bucket_id = 'complaint-media');
-
--- ------------------------------------------------------------------------------
--- 12. ROW LEVEL SECURITY (RLS) POLICIES
--- ------------------------------------------------------------------------------
--- Enable RLS on all tables
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.departments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.areas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.officers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.complaints ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.complaint_media ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.officer_activity_logs ENABLE ROW LEVEL SECURITY;
-
--- Allow read access to authenticated and anon users for departments, areas, officers
-CREATE POLICY "Public Read Departments" ON public.departments FOR SELECT USING (true);
-CREATE POLICY "Admin Write Departments" ON public.departments FOR ALL USING (true);
-
-CREATE POLICY "Public Read Areas" ON public.areas FOR SELECT USING (true);
-CREATE POLICY "Admin Write Areas" ON public.areas FOR ALL USING (true);
-
-CREATE POLICY "Public Read Officers" ON public.officers FOR SELECT USING (true);
-CREATE POLICY "Admin Write Officers" ON public.officers FOR ALL USING (true);
-
--- Profiles policies
-CREATE POLICY "Read Profiles" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Update Own Profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
-
--- Complaints policies
-CREATE POLICY "Read Complaints" ON public.complaints FOR SELECT USING (true);
-CREATE POLICY "Insert Complaints" ON public.complaints FOR INSERT WITH CHECK (true);
-CREATE POLICY "Update Complaints" ON public.complaints FOR UPDATE USING (true);
-CREATE POLICY "Delete Complaints" ON public.complaints FOR DELETE USING (true);
-
--- Complaint Media policies
-CREATE POLICY "Read Complaint Media" ON public.complaint_media FOR SELECT USING (true);
-CREATE POLICY "Insert Complaint Media" ON public.complaint_media FOR INSERT WITH CHECK (true);
-CREATE POLICY "Delete Complaint Media" ON public.complaint_media FOR DELETE USING (true);
-
--- Feedback policies
-CREATE POLICY "Read Feedback" ON public.feedback FOR SELECT USING (true);
-CREATE POLICY "Insert Feedback" ON public.feedback FOR INSERT WITH CHECK (true);
-
--- Notifications policies
-CREATE POLICY "Read Notifications" ON public.notifications FOR SELECT USING (true);
-CREATE POLICY "Write Notifications" ON public.notifications FOR ALL USING (true);
-
--- Logs policies
-CREATE POLICY "Read Activity Logs" ON public.activity_logs FOR SELECT USING (true);
-CREATE POLICY "Insert Activity Logs" ON public.activity_logs FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Read Officer Logs" ON public.officer_activity_logs FOR SELECT USING (true);
-CREATE POLICY "Insert Officer Logs" ON public.officer_activity_logs FOR INSERT WITH CHECK (true);
-
--- ------------------------------------------------------------------------------
--- 13. SEED DATA
--- ------------------------------------------------------------------------------
-
--- Seed Municipal Departments
-INSERT INTO public.departments (name, description, head, email, phone)
-VALUES
-  ('Public Works Department (PWD)', 'Road repairs, potholes, sidewalks, and civil infrastructure', 'Er. R. K. Verma', 'pwd.kanpur@nic.in', '+91 512 2548901'),
-  ('Jal Sansthan (Water & Drainage)', 'Water supply lines, contaminated water, drainage & sewage overflows', 'Smt. Anjali Srivastava', 'jalsansthan.kanpur@nic.in', '+91 512 2543412'),
-  ('KESCO (Electricity & Street Lighting)', 'Street light breakdown, loose electrical cables, power transformer issues', 'Er. S. N. Mishra', 'kesco.grievance@nic.in', '+91 512 2556789'),
-  ('Solid Waste & Sanitation (Nagar Nigam)', 'Garbage collection, illegal dumping, public dustbins, drain desilting', 'Dr. Alok Pandey', 'sanitation.knn@nic.in', '+91 512 2534567'),
-  ('Health & Vector Control', 'Mosquito fogging, stray animal management, public health hazards', 'Dr. Meena Gupta', 'health.knn@nic.in', '+91 512 2534890'),
-  ('Traffic & Public Safety', 'Illegal parking, broken signals, traffic hazard obstructions', 'Inspector Rajesh Kumar', 'traffic.kanpur@uppolice.gov.in', '+91 512 2304100')
-ON CONFLICT (name) DO NOTHING;
-
--- Seed Kanpur Localities / Areas
-INSERT INTO public.areas (name, city, ward, district, landmark, latitude, longitude, active)
-VALUES
-  ('Kalyanpur', 'Kanpur', 'Ward 38', 'Kanpur Nagar', 'Near Kalyanpur Railway Crossing', 26.4927, 80.2589, true),
-  ('Kakadeo', 'Kanpur', 'Ward 42', 'Kanpur Nagar', 'Deoki Cinema Crossing', 26.4789, 80.2974, true),
-  ('Civil Lines', 'Kanpur', 'Ward 15', 'Kanpur Nagar', 'Opposite Green Park Stadium', 26.4729, 80.3444, true),
-  ('Swaroop Nagar', 'Kanpur', 'Ward 21', 'Kanpur Nagar', 'Near Motijheel Gate', 26.4815, 80.3182, true),
-  ('Govind Nagar', 'Kanpur', 'Ward 54', 'Kanpur Nagar', 'C-Block Market', 26.4432, 80.3015, true),
-  ('Kidwai Nagar', 'Kanpur', 'Ward 62', 'Kanpur Nagar', 'Kidwai Nagar Central Park', 26.4358, 80.3341, true),
-  ('Shastri Nagar', 'Kanpur', 'Ward 33', 'Kanpur Nagar', 'Near Central Park', 26.4678, 80.3065, true),
-  ('Barra', 'Kanpur', 'Ward 71', 'Kanpur Nagar', 'Barra 2 Bypass', 26.4215, 80.2954, true),
-  ('Gumti No. 5', 'Kanpur', 'Ward 28', 'Kanpur Nagar', 'Gumti Central Market', 26.4712, 80.3156, true),
-  ('Parade', 'Kanpur', 'Ward 10', 'Kanpur Nagar', 'Naveen Market Area', 26.4635, 80.3498, true)
-ON CONFLICT DO NOTHING;
-
--- Seed Sample Active Officer
-INSERT INTO public.officers (name, employee_id, email, mobile, username, password_hash, department, area_name, designation, status)
-VALUES
-  ('Er. Vikram Singh', 'OFF-KN-2024-01', 'vikram.singh@kanpur.gov.in', '9876543210', 'officer1', 'password123', 'Public Works Department (PWD)', 'Kalyanpur', 'Junior Engineer', 'Active'),
-  ('Smt. Sunita Yadav', 'OFF-KN-2024-02', 'sunita.yadav@kanpur.gov.in', '9876543211', 'officer2', 'password123', 'Jal Sansthan (Water & Drainage)', 'Kakadeo', 'Assistant Engineer', 'Active')
-ON CONFLICT (username) DO NOTHING;
+CREATE POLICY "Allow upload access on complaint-media"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'complaint-media');
 
 -- ==============================================================================
--- SCHEMA CREATION COMPLETE
+-- INITIAL SEED DATA
 -- ==============================================================================
+INSERT INTO public.departments (id, name, description, head, email, phone)
+VALUES
+  ('dept-1', 'Public Works Department (PWD)', 'Road repairs, potholes, sidewalks', 'Er. R. K. Verma', 'pwd.kanpur@nic.in', '+91 512 2548901'),
+  ('dept-2', 'Jal Sansthan (Water & Drainage)', 'Water supply lines, sewage overflows', 'Smt. Anjali Srivastava', 'jalsansthan.kanpur@nic.in', '+91 512 2543412'),
+  ('dept-3', 'KESCO (Electricity & Street Lighting)', 'Street lights, cables, transformers', 'Er. S. N. Mishra', 'kesco.grievance@nic.in', '+91 512 2556789'),
+  ('dept-4', 'Solid Waste & Sanitation (Nagar Nigam)', 'Garbage collection, illegal dumping', 'Dr. Alok Pandey', 'sanitation.knn@nic.in', '+91 512 2534567'),
+  ('dept-5', 'Health & Vector Control', 'Mosquito fogging, stray animals', 'Dr. Meena Gupta', 'health.knn@nic.in', '+91 512 2534890'),
+  ('dept-6', 'Traffic & Public Safety', 'Traffic signals, illegal parking', 'Inspector Rajesh Kumar', 'traffic.kanpur@uppolice.gov.in', '+91 512 2304100')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.areas (id, name, city, ward, district, landmark, latitude, longitude, active)
+VALUES
+  ('area-1', 'Kalyanpur', 'Kanpur', 'Ward 38', 'Kanpur Nagar', 'Near Kalyanpur Crossing', 26.4927, 80.2589, true),
+  ('area-2', 'Kakadeo', 'Kanpur', 'Ward 42', 'Kanpur Nagar', 'Deoki Cinema Crossing', 26.4789, 80.2974, true),
+  ('area-3', 'Civil Lines', 'Kanpur', 'Ward 15', 'Kanpur Nagar', 'Green Park Stadium', 26.4729, 80.3444, true),
+  ('area-4', 'Swaroop Nagar', 'Kanpur', 'Ward 21', 'Kanpur Nagar', 'Near Motijheel', 26.4815, 80.3182, true),
+  ('area-5', 'Govind Nagar', 'Kanpur', 'Ward 54', 'Kanpur Nagar', 'C-Block Market', 26.4432, 80.3015, true),
+  ('area-6', 'Kidwai Nagar', 'Kanpur', 'Ward 62', 'Kanpur Nagar', 'Central Park', 26.4358, 80.3341, true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.officers (id, name, employee_id, email, mobile, username, password_hash, department, area_name, area_id, designation, status)
+VALUES
+  ('off-1', 'Er. Vikram Singh', 'OFF-KN-2024-01', 'vikram.singh@kanpur.gov.in', '9876543210', 'officer1', 'password123', 'Public Works Department (PWD)', 'Kalyanpur', 'area-1', 'Junior Engineer', 'Active'),
+  ('off-2', 'Smt. Sunita Yadav', 'OFF-KN-2024-02', 'sunita.yadav@kanpur.gov.in', '9876543211', 'officer2', 'password123', 'Jal Sansthan (Water & Drainage)', 'Kakadeo', 'area-2', 'Assistant Engineer', 'Active')
+ON CONFLICT (id) DO NOTHING;

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sparkles, MapPin, Loader2, Wand2, AlertTriangle, Clock } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/supabaseClient";
 import { showToast } from "@/lib/toast";
 import LocationPicker from "@/components/LocationPicker";
 import EvidenceCapture from "@/components/EvidenceCapture";
@@ -43,7 +43,7 @@ export default function SubmitComplaint() {
     }
     setAnalyzing(true);
     try {
-      const res = await base44.functions.invoke("analyzeComplaint", {
+      const res = await api.functions.invoke("analyzeComplaint", {
         title: form.title, description: form.description, category: form.category,
       });
       const data = res.data || res;
@@ -89,16 +89,16 @@ export default function SubmitComplaint() {
         is_delayed: false,
         timeline: [{ status: "Pending", note: "Complaint submitted by citizen", timestamp: now }],
       };
-      const created = await base44.entities.Complaint.create(complaint);
+      const created = await api.entities.Complaint.create(complaint);
 
       // Save media records linked to the complaint
       if (media.length) {
-        await base44.entities.ComplaintMedia.bulkCreate(
+        await api.entities.ComplaintMedia.bulkCreate(
           media.map((m) => ({ ...m, complaint_id: created.id }))
         );
       }
 
-      await base44.entities.Notification.create({
+      await api.entities.Notification.create({
         title: "Complaint submitted",
         message: `Your complaint "${form.title}" has been received. Expected resolution: ${formatExpectedResolution(estimatedDays)}.`,
         type: "system",

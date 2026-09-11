@@ -1,15 +1,18 @@
 {
-  "short_name": "SmartComplaint",
-  "name": "Smart Complaint Management System",
+  "short_name": "Civic Portal",
+  "name": "Civic Portal - Smart Local Complaint System",
+  "description": "Smart Local Grievance Redressal and Municipal Tracking System",
   "icons": [
     {
       "src": "/favicon.svg",
       "type": "image/svg+xml",
-      "sizes": "192x192 512x512"
+      "sizes": "any",
+      "purpose": "any maskable"
     }
   ],
   "start_url": "/",
   "background_color": "#ffffff",
-  "theme_color": "#1e293b",
-  "display": "standalone"
+  "theme_color": "#2563eb",
+  "display": "standalone",
+  "orientation": "portrait-primary"
 }

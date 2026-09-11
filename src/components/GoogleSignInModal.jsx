@@ -23,6 +23,10 @@ function parseJwt(token) {
   }
 }
 
+// Singleton tracking to ensure google.accounts.id.initialize is called only ONCE
+let initializedGsiClientId = null;
+let activeGsiHandler = null;
+
 export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citizen', onSignIn = (_user) => {} }) {
   const [role, setRole] = useState(defaultRole);
   const [email, setEmail] = useState('');
@@ -33,50 +37,69 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
 
   const activeClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || customClientId || '';
 
-  // Initialize Google Identity Services if client ID is present
+  const roleRef = useRef(role);
+  roleRef.current = role;
+
+  const onSignInRef = useRef(onSignIn);
+  onSignInRef.current = onSignIn;
+
+  // Keep active handler pointing to latest state/refs without re-initializing GSI
+  activeGsiHandler = async (response) => {
+    if (!response?.credential) return;
+    const payload = parseJwt(response.credential);
+    if (!payload) return;
+
+    const currentRole = roleRef.current;
+    const verifiedUser = {
+      id: 'google-' + (payload.sub || Math.random().toString(36).substring(2, 9)),
+      email: payload.email,
+      full_name: payload.name || payload.email.split('@')[0],
+      avatar_url: payload.picture,
+      role: currentRole,
+    };
+    localStorage.setItem('scms_demo_user', JSON.stringify(verifiedUser));
+    localStorage.setItem('scms_auth_intended_role', currentRole);
+
+    try {
+      if (supabase?.auth?.signInWithIdToken) {
+        await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: response.credential,
+        });
+      }
+    } catch (e) {
+      console.warn('Supabase signInWithIdToken sync:', e);
+    }
+
+    if (onSignInRef.current) {
+      onSignInRef.current(verifiedUser);
+    } else {
+      window.location.href = currentRole === 'admin' ? '/admin' : '/';
+    }
+  };
+
+  // Initialize Google Identity Services strictly ONCE per client ID
   useEffect(() => {
     if (!isOpen || !activeClientId) return;
 
+    let isMounted = true;
+
     const setupGoogle = () => {
+      if (!isMounted) return;
       const google = window.google;
       if (google?.accounts?.id && googleBtnRef.current) {
         try {
-          google.accounts.id.initialize({
-            client_id: activeClientId,
-            callback: async (response) => {
-              if (response.credential) {
-                const payload = parseJwt(response.credential);
-                if (payload) {
-                  const verifiedUser = {
-                    id: 'google-' + (payload.sub || Math.random().toString(36).substring(2, 9)),
-                    email: payload.email,
-                    full_name: payload.name || payload.email.split('@')[0],
-                    avatar_url: payload.picture,
-                    role,
-                  };
-                  localStorage.setItem('scms_demo_user', JSON.stringify(verifiedUser));
-                  localStorage.setItem('scms_auth_intended_role', role);
-
-                  try {
-                    if (supabase?.auth?.signInWithIdToken) {
-                      await supabase.auth.signInWithIdToken({
-                        provider: 'google',
-                        token: response.credential,
-                      });
-                    }
-                  } catch (e) {
-                    console.warn('Supabase signInWithIdToken sync:', e);
-                  }
-
-                  if (onSignIn) {
-                    onSignIn(verifiedUser);
-                  } else {
-                    window.location.href = role === 'admin' ? '/admin' : '/';
-                  }
+          if (initializedGsiClientId !== activeClientId) {
+            google.accounts.id.initialize({
+              client_id: activeClientId,
+              callback: (response) => {
+                if (activeGsiHandler) {
+                  activeGsiHandler(response);
                 }
-              }
-            },
-          });
+              },
+            });
+            initializedGsiClientId = activeClientId;
+          }
 
           // Render official Google button
           googleBtnRef.current.innerHTML = '';
@@ -93,9 +116,12 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
       }
     };
 
-    const timer = setTimeout(setupGoogle, 200);
-    return () => clearTimeout(timer);
-  }, [isOpen, activeClientId, role]);
+    const timer = setTimeout(setupGoogle, 150);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [isOpen, activeClientId]);
 
   if (!isOpen) return null;
 

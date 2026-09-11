@@ -1,9 +1,10 @@
 import React from 'react';
-import { User, ShieldCheck, Building2 } from 'lucide-react';
+import { User, Shield, ShieldCheck, Building2 } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
 
 const ROLES = [
   { id: 'citizen', label: 'Citizen', icon: User, desc: 'Submit & track complaints', color: 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' },
+  { id: 'officer', label: 'Field Officer', icon: Shield, desc: 'Resolve assigned complaints & updates', color: 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400' },
   { id: 'admin', label: 'Admin', icon: ShieldCheck, desc: 'Full system management', color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' },
 ];
 

@@ -12,7 +12,7 @@ import { UserCheck, ArrowRight, LogOut, AlertCircle } from 'lucide-react';
 export default function Login() {
   const urlParams = new URLSearchParams(window.location.search);
   const [role, setRole] = useState(urlParams.get('role'));
-  const [oauthError, setOauthError] = useState(() => {
+  const [oauthError] = useState(() => {
     const err = urlParams.get('error_description') || urlParams.get('error');
     return err ? decodeURIComponent(err.replace(/\+/g, ' ')) : '';
   });

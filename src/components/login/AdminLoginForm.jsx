@@ -85,7 +85,7 @@ export default function AdminLoginForm({ onBack }) {
         isOpen={showGoogleModal}
         onClose={() => setShowGoogleModal(false)}
         defaultRole="admin"
-        onSignIn={(user) => {
+        onSignIn={(_user) => {
           setShowGoogleModal(false);
           window.location.href = '/admin';
         }}

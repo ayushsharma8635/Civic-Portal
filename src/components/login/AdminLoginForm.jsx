@@ -56,7 +56,14 @@ export default function AdminLoginForm({ onBack }) {
       }
       window.location.href = '/admin';
     } catch (err) {
-      setError(err.message || 'Invalid email or password');
+      const msg = err.message || '';
+      if (msg.toLowerCase().includes('invalid login credentials') || msg.toLowerCase().includes('user not found')) {
+        setError(
+          `Authentication failed. If this admin account has not been created yet in Supabase, please create "${AUTHORIZED_ADMIN_EMAIL}" manually in your Supabase Dashboard under Authentication -> Users.`
+        );
+      } else {
+        setError(err.message || 'Invalid email or password');
+      }
     } finally {
       setLoading(false);
     }

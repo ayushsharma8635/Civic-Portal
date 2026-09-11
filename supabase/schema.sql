@@ -19,12 +19,20 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+-- Database-level security function to check if the current user is the single authorized administrator
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN LOWER(TRIM(COALESCE(auth.jwt() ->> 'email', ''))) = 'YOUR_ADMIN_EMAIL@gmail.com';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Database-level security trigger: Strictly guarantees only the designated admin email can hold the 'admin' role
 CREATE OR REPLACE FUNCTION public.enforce_single_admin_role()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Revert any unauthorized attempt to set role='admin' back to 'citizen'
-  IF NEW.role = 'admin' AND LOWER(TRIM(COALESCE(NEW.email, ''))) NOT IN ('admin@civicportal.gov.in') THEN
+  IF NEW.role = 'admin' AND LOWER(TRIM(COALESCE(NEW.email, ''))) NOT IN ('YOUR_ADMIN_EMAIL@gmail.com') THEN
     NEW.role := 'citizen';
   END IF;
   RETURN NEW;
@@ -172,9 +180,10 @@ CREATE POLICY "Authorized updates to complaints"
   ON public.complaints FOR UPDATE
   USING (true);
 
-CREATE POLICY "Authorized deletion of complaints"
+CREATE POLICY "Only authorized admin can delete complaints"
   ON public.complaints FOR DELETE
-  USING (true);
+  TO authenticated
+  USING (public.is_admin());
 
 -- 6. COMPLAINT MEDIA TABLE
 CREATE TABLE IF NOT EXISTS public.complaint_media (

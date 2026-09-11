@@ -320,7 +320,7 @@ const entities = {
 
 // Single Authorized Admin Definition
 export const AUTHORIZED_ADMIN_EMAIL = (
-  import.meta.env.VITE_ADMIN_EMAIL || 'admin@civicportal.gov.in'
+  import.meta.env.VITE_ADMIN_EMAIL || 'YOUR_ADMIN_EMAIL@gmail.com'
 ).toLowerCase().trim();
 
 export function isAuthorizedAdminEmail(email) {

@@ -1,0 +1,15 @@
+{
+  "short_name": "SmartComplaint",
+  "name": "Smart Complaint Management System",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#1e293b",
+  "display": "standalone"
+}

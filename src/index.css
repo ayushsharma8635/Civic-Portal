@@ -1,0 +1,166 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Nunito+Sans:wght@600;700;800;900&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 43 33% 96%;
+    --foreground: 0 0% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 15%;
+    --primary: 139 15% 42%;
+    --primary-foreground: 40 30% 97%;
+    --secondary: 40 28% 90%;
+    --secondary-foreground: 0 0% 15%;
+    --muted: 40 20% 93%;
+    --muted-foreground: 30 5% 38%;
+    --accent: 40 25% 88%;
+    --accent-foreground: 139 15% 35%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 40 30% 97%;
+    --border: 40 15% 87%;
+    --input: 40 15% 87%;
+    --ring: 139 15% 42%;
+    --chart-1: 139 15% 42%;
+    --chart-2: 140 25% 65%;
+    --chart-3: 20 45% 60%;
+    --chart-4: 33 80% 50%;
+    --chart-5: 170 25% 45%;
+    --radius: 0.875rem;
+    --font-heading: 'Nunito Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Nunito Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --sidebar-background: 40 33% 91%;
+    --sidebar-foreground: 30 5% 25%;
+    --sidebar-primary: 139 15% 42%;
+    --sidebar-primary-foreground: 40 30% 97%;
+    --sidebar-accent: 40 25% 86%;
+    --sidebar-accent-foreground: 139 15% 35%;
+    --sidebar-border: 40 20% 84%;
+    --sidebar-ring: 139 15% 42%;
+  }
+
+  .dark {
+    --background: 30 10% 12%;
+    --foreground: 40 20% 92%;
+    --card: 30 8% 16%;
+    --card-foreground: 40 20% 92%;
+    --popover: 30 8% 16%;
+    --popover-foreground: 40 20% 92%;
+    --primary: 139 20% 55%;
+    --primary-foreground: 30 10% 10%;
+    --secondary: 30 6% 20%;
+    --secondary-foreground: 40 20% 92%;
+    --muted: 30 6% 22%;
+    --muted-foreground: 40 10% 65%;
+    --accent: 30 6% 26%;
+    --accent-foreground: 139 20% 65%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 40 20% 92%;
+    --border: 30 6% 24%;
+    --input: 30 6% 24%;
+    --ring: 139 20% 55%;
+    --chart-1: 139 20% 55%;
+    --chart-2: 140 25% 65%;
+    --chart-3: 20 45% 60%;
+    --chart-4: 33 70% 55%;
+    --chart-5: 170 25% 50%;
+    --sidebar-background: 30 10% 10%;
+    --sidebar-foreground: 40 10% 78%;
+    --sidebar-primary: 139 20% 55%;
+    --sidebar-primary-foreground: 30 10% 10%;
+    --sidebar-accent: 30 6% 18%;
+    --sidebar-accent-foreground: 139 20% 65%;
+    --sidebar-border: 30 6% 18%;
+    --sidebar-ring: 139 20% 55%;
+  }
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+  }
+}
+
+#toast-container {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toast-message {
+  min-width: 320px;
+  max-width: 420px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px 45px 18px 20px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+  position: relative;
+  animation: toastIn 0.3s ease;
+}
+
+.toast-message.success {
+  border-left: 4px solid #22c55e;
+}
+
+.toast-message.error {
+  border-left: 4px solid #ef4444;
+}
+
+.toast-message.warning {
+  border-left: 4px solid #f59e0b;
+}
+
+.toast-close {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+  color: #777;
+}
+
+.toast-close:hover {
+  color: #111;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-15px);
+  }
+}

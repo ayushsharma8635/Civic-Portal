@@ -1,0 +1,157 @@
+{
+  "name": "Complaint",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 5
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Road Damage",
+        "Garbage Collection",
+        "Street Light",
+        "Water Leakage",
+        "Drainage",
+        "Electricity",
+        "Stray Animals",
+        "Illegal Parking",
+        "Public Safety",
+        "Other"
+      ]
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "Low",
+        "Medium",
+        "High"
+      ],
+      "default": "Medium"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Pending",
+        "In Review",
+        "Assigned",
+        "Accepted",
+        "Work Started",
+        "In Progress",
+        "Work Completed",
+        "Resolved",
+        "Rejected"
+      ],
+      "default": "Pending"
+    },
+    "location": {
+      "type": "string"
+    },
+    "area": {
+      "type": "string"
+    },
+    "area_id": {
+      "type": "string"
+    },
+    "location_name": {
+      "type": "string"
+    },
+    "formatted_address": {
+      "type": "string"
+    },
+    "google_place_id": {
+      "type": "string"
+    },
+    "latitude": {
+      "type": "number"
+    },
+    "longitude": {
+      "type": "number"
+    },
+    "photo_url": {
+      "type": "string"
+    },
+    "department": {
+      "type": "string"
+    },
+    "officer_id": {
+      "type": "string"
+    },
+    "officer_name": {
+      "type": "string"
+    },
+    "remarks": {
+      "type": "string"
+    },
+    "ai_summary": {
+      "type": "string"
+    },
+    "is_spam": {
+      "type": "boolean",
+      "default": false
+    },
+    "duplicate_of": {
+      "type": "string"
+    },
+    "complaint_code": {
+      "type": "string"
+    },
+    "estimated_days": {
+      "type": "number"
+    },
+    "expected_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "actual_resolved_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "is_delayed": {
+      "type": "boolean",
+      "default": false
+    },
+    "temporary_solution": {
+      "type": "string"
+    },
+    "temp_alt_facility": {
+      "type": "string"
+    },
+    "temp_alt_route": {
+      "type": "string"
+    },
+    "temp_availability_time": {
+      "type": "string"
+    },
+    "temp_contact": {
+      "type": "string"
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "title",
+    "description",
+    "category"
+  ]
+}

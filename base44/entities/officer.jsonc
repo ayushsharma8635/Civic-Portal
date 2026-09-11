@@ -1,0 +1,51 @@
+{
+  "name": "Officer",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "employee_id": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "mobile": {
+      "type": "string"
+    },
+    "username": {
+      "type": "string"
+    },
+    "password_hash": {
+      "type": "string"
+    },
+    "department": {
+      "type": "string"
+    },
+    "area_id": {
+      "type": "string"
+    },
+    "area_name": {
+      "type": "string"
+    },
+    "designation": {
+      "type": "string"
+    },
+    "profile_photo": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Active",
+        "Inactive"
+      ],
+      "default": "Active"
+    }
+  },
+  "required": [
+    "name",
+    "username"
+  ]
+}

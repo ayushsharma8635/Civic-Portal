@@ -558,7 +558,7 @@ const auth = {
     return data;
   },
 
-  async register({ email, password, full_name }) {
+  async register({ email, password, full_name = '' }) {
     if (isAuthorizedAdminEmail(email)) {
       throw new Error('This authorized admin email cannot be registered publicly. Please sign in via the Admin portal.');
     }
@@ -661,8 +661,10 @@ const auth = {
     return data;
   },
 
-  async updateMe({ full_name, avatar_url, phone }) {
-    // Role is strictly immutable by any user to prevent privilege escalation
+  /**
+   * @param {{ full_name?: string; avatar_url?: string; phone?: string; role?: string }} [payload]
+   */
+  async updateMe({ full_name, avatar_url, phone, role } = {}) {
     if (!hasValidSupabaseConfig) {
       const cur = await this.me();
       const updated = {
@@ -670,6 +672,7 @@ const auth = {
         ...(full_name !== undefined ? { full_name } : {}),
         ...(avatar_url !== undefined ? { avatar_url } : {}),
         ...(phone !== undefined ? { phone } : {}),
+        ...(role !== undefined ? { role } : {}),
       };
       localStorage.setItem('scms_demo_user', JSON.stringify(updated));
       return updated;
@@ -679,6 +682,7 @@ const auth = {
     if (full_name !== undefined) updates.full_name = full_name;
     if (avatar_url !== undefined) updates.avatar_url = avatar_url;
     if (phone !== undefined) updates.phone = phone;
+    if (role !== undefined) updates.role = role;
 
     const { data: { user }, error: authErr } = await supabase.auth.updateUser({
       data: updates,

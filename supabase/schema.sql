@@ -343,8 +343,10 @@ CREATE POLICY "Feedback insertable by anyone"
 -- STORAGE BUCKET CONFIGURATION
 -- ==============================================================================
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('complaint-media', 'complaint-media', true)
-ON CONFLICT (id) DO NOTHING;
+SELECT 'complaint-media', 'complaint-media', true
+WHERE NOT EXISTS (
+  SELECT 1 FROM storage.buckets WHERE id = 'complaint-media'
+);
 
 DROP POLICY IF EXISTS "Allow public read access on complaint-media" ON storage.objects;
 CREATE POLICY "Allow public read access on complaint-media"
@@ -357,45 +359,107 @@ CREATE POLICY "Allow upload access on complaint-media"
   WITH CHECK (bucket_id = 'complaint-media');
 
 -- ==============================================================================
--- INITIAL SEED DATA (Valid UUIDs for all rows, idempotent on id or unique name)
+-- SAFE CONSTRAINT SYNCHRONIZATION (For existing pre-migrated databases)
 -- ==============================================================================
--- Clean up any legacy or duplicate department entries if present
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.departments'::regclass AND conname = 'departments_name_key'
+  ) THEN
+    BEGIN
+      ALTER TABLE public.departments ADD CONSTRAINT departments_name_key UNIQUE (name);
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.areas'::regclass AND conname = 'areas_name_key'
+  ) THEN
+    BEGIN
+      ALTER TABLE public.areas ADD CONSTRAINT areas_name_key UNIQUE (name);
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.officers'::regclass AND conname = 'officers_username_key'
+  ) THEN
+    BEGIN
+      ALTER TABLE public.officers ADD CONSTRAINT officers_username_key UNIQUE (username);
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END IF;
+EXCEPTION
+  WHEN OTHERS THEN
+    NULL;
+END $$;
+
+-- ==============================================================================
+-- INITIAL SEED DATA (Valid UUIDs, foolproof insertion via WHERE NOT EXISTS)
+-- ==============================================================================
+-- 1. Departments: insert missing seed records
 INSERT INTO public.departments (id, name, description, head, email, phone)
-VALUES
+SELECT v.id::uuid, v.name, v.description, v.head, v.email, v.phone
+FROM (VALUES
   ('a0000000-0000-0000-0000-000000000001', 'Public Works Department (PWD)', 'Road repairs, potholes, sidewalks', 'Er. R. K. Verma', 'pwd.kanpur@nic.in', '+91 512 2548901'),
   ('a0000000-0000-0000-0000-000000000002', 'Jal Sansthan (Water & Drainage)', 'Water supply lines, sewage overflows', 'Smt. Anjali Srivastava', 'jalsansthan.kanpur@nic.in', '+91 512 2543412'),
   ('a0000000-0000-0000-0000-000000000003', 'KESCO (Electricity & Street Lighting)', 'Street lights, cables, transformers', 'Er. S. N. Mishra', 'kesco.grievance@nic.in', '+91 512 2556789'),
   ('a0000000-0000-0000-0000-000000000004', 'Solid Waste & Sanitation (Nagar Nigam)', 'Garbage collection, illegal dumping', 'Dr. Alok Pandey', 'sanitation.knn@nic.in', '+91 512 2534567'),
   ('a0000000-0000-0000-0000-000000000005', 'Health & Vector Control', 'Mosquito fogging, stray animals', 'Dr. Meena Gupta', 'health.knn@nic.in', '+91 512 2534890'),
   ('a0000000-0000-0000-0000-000000000006', 'Traffic & Public Safety', 'Traffic signals, illegal parking', 'Inspector Rajesh Kumar', 'traffic.kanpur@uppolice.gov.in', '+91 512 2304100')
-ON CONFLICT (name) DO UPDATE SET
-  description = EXCLUDED.description,
-  head = EXCLUDED.head,
-  email = EXCLUDED.email,
-  phone = EXCLUDED.phone;
+) AS v(id, name, description, head, email, phone)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.departments d WHERE d.id = v.id::uuid OR LOWER(d.name) = LOWER(v.name)
+);
 
+-- Update department metadata if records already existed
+UPDATE public.departments AS d
+SET
+  description = COALESCE(d.description, v.description),
+  head = COALESCE(d.head, v.head),
+  email = COALESCE(d.email, v.email),
+  phone = COALESCE(d.phone, v.phone)
+FROM (VALUES
+  ('Public Works Department (PWD)', 'Road repairs, potholes, sidewalks', 'Er. R. K. Verma', 'pwd.kanpur@nic.in', '+91 512 2548901'),
+  ('Jal Sansthan (Water & Drainage)', 'Water supply lines, sewage overflows', 'Smt. Anjali Srivastava', 'jalsansthan.kanpur@nic.in', '+91 512 2543412'),
+  ('KESCO (Electricity & Street Lighting)', 'Street lights, cables, transformers', 'Er. S. N. Mishra', 'kesco.grievance@nic.in', '+91 512 2556789'),
+  ('Solid Waste & Sanitation (Nagar Nigam)', 'Garbage collection, illegal dumping', 'Dr. Alok Pandey', 'sanitation.knn@nic.in', '+91 512 2534567'),
+  ('Health & Vector Control', 'Mosquito fogging, stray animals', 'Dr. Meena Gupta', 'health.knn@nic.in', '+91 512 2534890'),
+  ('Traffic & Public Safety', 'Traffic signals, illegal parking', 'Inspector Rajesh Kumar', 'traffic.kanpur@uppolice.gov.in', '+91 512 2304100')
+) AS v(name, description, head, email, phone)
+WHERE LOWER(d.name) = LOWER(v.name);
+
+-- 2. Areas: insert missing seed records
 INSERT INTO public.areas (id, name, city, ward, district, landmark, latitude, longitude, active)
-VALUES
+SELECT v.id::uuid, v.name, v.city, v.ward, v.district, v.landmark, v.latitude, v.longitude, v.active
+FROM (VALUES
   ('b0000000-0000-0000-0000-000000000001', 'Kalyanpur', 'Kanpur', 'Ward 38', 'Kanpur Nagar', 'Near Kalyanpur Crossing', 26.4927, 80.2589, true),
   ('b0000000-0000-0000-0000-000000000002', 'Kakadeo', 'Kanpur', 'Ward 42', 'Kanpur Nagar', 'Deoki Cinema Crossing', 26.4789, 80.2974, true),
   ('b0000000-0000-0000-0000-000000000003', 'Civil Lines', 'Kanpur', 'Ward 15', 'Kanpur Nagar', 'Green Park Stadium', 26.4729, 80.3444, true),
   ('b0000000-0000-0000-0000-000000000004', 'Swaroop Nagar', 'Kanpur', 'Ward 21', 'Kanpur Nagar', 'Near Motijheel', 26.4815, 80.3182, true),
   ('b0000000-0000-0000-0000-000000000005', 'Govind Nagar', 'Kanpur', 'Ward 54', 'Kanpur Nagar', 'C-Block Market', 26.4432, 80.3015, true),
   ('b0000000-0000-0000-0000-000000000006', 'Kidwai Nagar', 'Kanpur', 'Ward 62', 'Kanpur Nagar', 'Central Park', 26.4358, 80.3341, true)
-ON CONFLICT (name) DO UPDATE SET
-  city = EXCLUDED.city,
-  ward = EXCLUDED.ward,
-  district = EXCLUDED.district,
-  landmark = EXCLUDED.landmark,
-  latitude = EXCLUDED.latitude,
-  longitude = EXCLUDED.longitude,
-  active = EXCLUDED.active;
+) AS v(id, name, city, ward, district, landmark, latitude, longitude, active)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.areas a WHERE a.id = v.id::uuid OR LOWER(a.name) = LOWER(v.name)
+);
 
+-- 3. Officers: insert missing seed records
 INSERT INTO public.officers (id, name, employee_id, email, mobile, username, password_hash, department, area_name, area_id, designation, status)
-VALUES
+SELECT v.id::uuid, v.name, v.employee_id, v.email, v.mobile, v.username, v.password_hash, v.department, v.area_name, v.area_id::uuid, v.designation, v.status
+FROM (VALUES
   ('c0000000-0000-0000-0000-000000000001', 'Er. Vikram Singh', 'OFF-KN-2024-01', 'vikram.singh@kanpur.gov.in', '9876543210', 'officer1', 'password123', 'Public Works Department (PWD)', 'Kalyanpur', 'b0000000-0000-0000-0000-000000000001', 'Junior Engineer', 'Active'),
   ('c0000000-0000-0000-0000-000000000002', 'Smt. Sunita Yadav', 'OFF-KN-2024-02', 'sunita.yadav@kanpur.gov.in', '9876543211', 'officer2', 'password123', 'Jal Sansthan (Water & Drainage)', 'Kakadeo', 'b0000000-0000-0000-0000-000000000002', 'Assistant Engineer', 'Active')
-ON CONFLICT (username) DO NOTHING;
+) AS v(id, name, employee_id, email, mobile, username, password_hash, department, area_name, area_id, designation, status)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.officers o WHERE o.id = v.id::uuid OR o.username = v.username
+);
 
 -- ==============================================================================
 -- SUPABASE REALTIME PUBLICATION CONFIGURATION

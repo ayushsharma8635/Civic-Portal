@@ -19,6 +19,24 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+-- Database-level security trigger: Strictly guarantees only the designated admin email can hold the 'admin' role
+CREATE OR REPLACE FUNCTION public.enforce_single_admin_role()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Revert any unauthorized attempt to set role='admin' back to 'citizen'
+  IF NEW.role = 'admin' AND LOWER(TRIM(COALESCE(NEW.email, ''))) NOT IN ('admin@civicportal.gov.in') THEN
+    NEW.role := 'citizen';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_enforce_admin_role ON public.profiles;
+CREATE TRIGGER trg_enforce_admin_role
+  BEFORE INSERT OR UPDATE ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_single_admin_role();
+
 CREATE POLICY "Public profiles are viewable by authenticated users"
   ON public.profiles FOR SELECT
   TO authenticated
@@ -319,3 +337,38 @@ VALUES
   ('off-1', 'Er. Vikram Singh', 'OFF-KN-2024-01', 'vikram.singh@kanpur.gov.in', '9876543210', 'officer1', 'password123', 'Public Works Department (PWD)', 'Kalyanpur', 'area-1', 'Junior Engineer', 'Active'),
   ('off-2', 'Smt. Sunita Yadav', 'OFF-KN-2024-02', 'sunita.yadav@kanpur.gov.in', '9876543211', 'officer2', 'password123', 'Jal Sansthan (Water & Drainage)', 'Kakadeo', 'area-2', 'Assistant Engineer', 'Active')
 ON CONFLICT (id) DO NOTHING;
+
+-- ==============================================================================
+-- SUPABASE REALTIME PUBLICATION CONFIGURATION
+-- ==============================================================================
+-- Full row replica identity for detailed real-time events
+ALTER TABLE public.complaints REPLICA IDENTITY FULL;
+ALTER TABLE public.complaint_media REPLICA IDENTITY FULL;
+ALTER TABLE public.notifications REPLICA IDENTITY FULL;
+ALTER TABLE public.officer_activity_logs REPLICA IDENTITY FULL;
+
+-- Add tables to supabase_realtime publication
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.complaints;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.complaint_media;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
+  END;
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.officer_activity_logs;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
+  END;
+END $$;
+

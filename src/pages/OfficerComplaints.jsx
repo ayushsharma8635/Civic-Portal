@@ -34,7 +34,11 @@ export default function OfficerComplaints() {
     }
   };
 
-  useEffect(() => { load(); }, [statusFilter]);
+  useEffect(() => {
+    load();
+    const unsub = api.entities.Complaint.subscribe(() => load());
+    return unsub;
+  }, [statusFilter]);
 
   const filtered = complaints.filter((c) => {
     if (!search) return true;

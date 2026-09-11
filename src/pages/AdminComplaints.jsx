@@ -59,7 +59,11 @@ export default function AdminComplaints() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const unsub = api.entities.Complaint.subscribe(() => load());
+    return unsub;
+  }, []);
 
   const filtered = complaints.filter((c) => {
     if (statusFilter !== 'All' && c.status !== statusFilter) return false;

@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '@/api/supabaseClient';
+import { api, AUTHORIZED_ADMIN_EMAIL, isAuthorizedAdminEmail } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Mail, Lock, Loader2, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, Loader2, ArrowLeft, ShieldAlert } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
 import GoogleIcon from '@/components/GoogleIcon';
 import GoogleSignInModal from '@/components/GoogleSignInModal';
 
 export default function AdminLoginForm({ onBack }) {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(AUTHORIZED_ADMIN_EMAIL);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,6 +30,8 @@ export default function AdminLoginForm({ onBack }) {
       if (hashError) {
         setError(decodeURIComponent(hashError.replace(/\+/g, ' ')));
         window.history.replaceState({}, '', window.location.pathname);
+      } else if (searchParams.get('error') === 'unauthorized') {
+        setError('Unauthorized access. Only the designated system administrator can access the Admin Dashboard.');
       }
     }
   }, []);
@@ -37,12 +39,18 @@ export default function AdminLoginForm({ onBack }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!isAuthorizedAdminEmail(email)) {
+      setError(`Access denied. Only the single authorized administrator (${AUTHORIZED_ADMIN_EMAIL}) is permitted to log in.`);
+      return;
+    }
+
     setLoading(true);
     try {
       await api.auth.loginViaEmailPassword(email, password);
       const user = await api.auth.me();
       if (user.role !== 'admin') {
-        sessionStorage.setItem('admin_login_error', 'This account does not have admin access.');
+        sessionStorage.setItem('admin_login_error', 'This account does not have administrator privileges.');
         api.auth.logout('/login?role=admin');
         return;
       }
@@ -73,12 +81,16 @@ export default function AdminLoginForm({ onBack }) {
     <AuthLayout
       icon={ShieldCheck}
       title="Admin Login"
-      subtitle="System administrator access"
+      subtitle="Single authorized administrator access"
       footer={
-        <>
-          Need an admin account?{' '}
-          <Link to="/register?returnTo=/admin" className="text-primary font-medium hover:underline">Register</Link>
-        </>
+        <div className="text-center space-y-1">
+          <p className="text-xs text-muted-foreground">
+            Strictly one authorized system administrator account.
+          </p>
+          <p className="text-[11px] text-muted-foreground/70">
+            Citizen registration is available on the citizen portal.
+          </p>
+        </div>
       }
     >
       <GoogleSignInModal
@@ -95,9 +107,16 @@ export default function AdminLoginForm({ onBack }) {
         <ArrowLeft className="h-3 w-3" /> Back to role selection
       </button>
 
+      <div className="mb-4 p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs text-muted-foreground flex items-start gap-2">
+        <ShieldAlert className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+        <div>
+          <span className="font-semibold text-foreground">Designated Admin:</span> {AUTHORIZED_ADMIN_EMAIL}
+        </div>
+      </div>
+
       <Button variant="outline" className="w-full h-12 text-sm font-medium mb-6" onClick={handleGoogle}>
         <GoogleIcon className="w-5 h-5 mr-2" />
-        Continue with Google
+        Continue with Google (Admin)
       </Button>
 
       <div className="relative mb-6">
@@ -112,7 +131,7 @@ export default function AdminLoginForm({ onBack }) {
           <Label htmlFor="admin-email">Admin Email</Label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input id="admin-email" type="email" autoComplete="email" autoFocus placeholder="admin@example.com" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10 h-12" required />
+            <Input id="admin-email" type="email" autoComplete="email" autoFocus placeholder={AUTHORIZED_ADMIN_EMAIL} value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10 h-12" required />
           </div>
         </div>
         <div className="space-y-2">

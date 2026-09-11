@@ -80,9 +80,16 @@ const INITIAL_OFFICERS = [
 
 // Entity Repository Factory
 function createRepository(tableName, localDefault = []) {
+  const isStrictSupabase = tableName === 'complaints' || tableName === 'complaint_media';
+
   return {
     async list(sort = '-created_date', limit = 500) {
       if (!hasValidSupabaseConfig) {
+        if (isStrictSupabase) {
+          throw new Error(
+            'Supabase configuration required. Complaints must be stored in and retrieved directly from Supabase as the source of truth. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+          );
+        }
         let items = [...getLocalCollection(tableName, localDefault)];
         if (sort) {
           const isDesc = sort.startsWith('-');
@@ -111,6 +118,11 @@ function createRepository(tableName, localDefault = []) {
 
     async filter(filterObj = {}, sort = '-created_date', limit = 200) {
       if (!hasValidSupabaseConfig) {
+        if (isStrictSupabase) {
+          throw new Error(
+            'Supabase configuration required. Complaints must be stored in and retrieved directly from Supabase as the source of truth. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+          );
+        }
         let items = getLocalCollection(tableName, localDefault).filter((item) => {
           return Object.entries(filterObj).every(([k, v]) => String(item[k]) === String(v));
         });
@@ -144,6 +156,11 @@ function createRepository(tableName, localDefault = []) {
 
     async get(id) {
       if (!hasValidSupabaseConfig) {
+        if (isStrictSupabase) {
+          throw new Error(
+            'Supabase configuration required. Complaints must be stored in and retrieved directly from Supabase as the source of truth. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+          );
+        }
         const items = getLocalCollection(tableName, localDefault);
         const found = items.find((x) => x.id === id);
         if (!found) throw new Error(`${tableName} record with id ${id} not found`);
@@ -164,6 +181,11 @@ function createRepository(tableName, localDefault = []) {
       };
 
       if (!hasValidSupabaseConfig) {
+        if (isStrictSupabase) {
+          throw new Error(
+            'Supabase configuration required. Complaints must be stored in and retrieved directly from Supabase as the source of truth. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+          );
+        }
         const items = getLocalCollection(tableName, localDefault);
         items.unshift(withMeta);
         saveLocalCollection(tableName, items);
@@ -184,6 +206,11 @@ function createRepository(tableName, localDefault = []) {
       }));
 
       if (!hasValidSupabaseConfig) {
+        if (isStrictSupabase) {
+          throw new Error(
+            'Supabase configuration required. Complaints must be stored in and retrieved directly from Supabase as the source of truth. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+          );
+        }
         const items = getLocalCollection(tableName, localDefault);
         const updated = [...formatted, ...items];
         saveLocalCollection(tableName, updated);
@@ -198,6 +225,11 @@ function createRepository(tableName, localDefault = []) {
     async update(id, patch) {
       const now = new Date().toISOString();
       if (!hasValidSupabaseConfig) {
+        if (isStrictSupabase) {
+          throw new Error(
+            'Supabase configuration required. Complaints must be stored in and retrieved directly from Supabase as the source of truth. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+          );
+        }
         const items = getLocalCollection(tableName, localDefault);
         const idx = items.findIndex((x) => x.id === id);
         if (idx === -1) throw new Error(`${tableName} record not found`);
@@ -230,6 +262,11 @@ function createRepository(tableName, localDefault = []) {
 
     async delete(id) {
       if (!hasValidSupabaseConfig) {
+        if (isStrictSupabase) {
+          throw new Error(
+            'Supabase configuration required. Complaints must be stored in and retrieved directly from Supabase as the source of truth. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+          );
+        }
         const items = getLocalCollection(tableName, localDefault).filter((x) => x.id !== id);
         saveLocalCollection(tableName, items);
         return { success: true };
@@ -242,17 +279,24 @@ function createRepository(tableName, localDefault = []) {
 
     subscribe(callback) {
       if (!hasValidSupabaseConfig) {
-        // In local mode, return a harmless unsubscribe no-op
         return () => {};
       }
 
-      const channelName = `sub_${tableName}_${Math.random().toString(36).slice(2, 7)}`;
+      const channelName = `realtime_${tableName}_${Math.random().toString(36).slice(2, 8)}`;
       const channel = supabase
         .channel(channelName)
-        .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, () => {
-          if (typeof callback === 'function') callback();
-        })
-        .subscribe();
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: tableName },
+          (payload) => {
+            if (typeof callback === 'function') callback(payload);
+          }
+        )
+        .subscribe((status, error) => {
+          if (error) {
+            console.warn(`[Realtime] Subscription error on ${tableName}:`, error);
+          }
+        });
 
       return () => {
         supabase.removeChannel(channel);
@@ -274,10 +318,24 @@ const entities = {
   Feedback: createRepository('feedback'),
 };
 
+// Single Authorized Admin Definition
+export const AUTHORIZED_ADMIN_EMAIL = (
+  import.meta.env.VITE_ADMIN_EMAIL || 'admin@civicportal.gov.in'
+).toLowerCase().trim();
+
+export function isAuthorizedAdminEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  return email.toLowerCase().trim() === AUTHORIZED_ADMIN_EMAIL;
+}
+
 // Authentication Layer
 const auth = {
   isDemoMode() {
     return !hasValidSupabaseConfig;
+  },
+
+  getAuthorizedAdminEmail() {
+    return AUTHORIZED_ADMIN_EMAIL;
   },
 
   async me() {
@@ -300,19 +358,20 @@ const auth = {
     }
 
     if (user) {
-      // Check if user signed in with an intended role (e.g. from Admin login)
-      const intendedRole = localStorage.getItem('scms_auth_intended_role');
-
-      // Fetch profile for role and full_name
-      let role = user.user_metadata?.role || intendedRole || 'citizen';
+      const email = (user.email || '').toLowerCase().trim();
+      const isAuthorizedAdmin = isAuthorizedAdminEmail(email);
+      // ONLY the single designated admin account can ever receive the admin role
+      const role = isAuthorizedAdmin ? 'admin' : 'citizen';
       let full_name = user.user_metadata?.full_name || user.user_metadata?.name || '';
       const avatar_url = user.user_metadata?.avatar_url || user.user_metadata?.picture || '';
 
       try {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
         if (profile) {
-          role = profile.role || role;
           full_name = profile.full_name || full_name;
+          if (profile.role !== role) {
+            await supabase.from('profiles').update({ role, updated_at: new Date().toISOString() }).eq('id', user.id);
+          }
         } else {
           await supabase.from('profiles').upsert({
             id: user.id,
@@ -325,7 +384,7 @@ const auth = {
           });
         }
       } catch {
-        // Use user metadata fallback
+        // Fallback to computed role
       }
 
       return {
@@ -343,6 +402,8 @@ const auth = {
       try {
         const parsed = JSON.parse(stored);
         if (parsed && (parsed.email || parsed.id)) {
+          // Re-verify role against AUTHORIZED_ADMIN_EMAIL
+          parsed.role = isAuthorizedAdminEmail(parsed.email) ? 'admin' : 'citizen';
           return parsed;
         }
       } catch {}
@@ -350,7 +411,7 @@ const auth = {
 
     if (!hasValidSupabaseConfig) {
       // Default demo citizen user when offline and no stored user
-      const demo = { id: 'demo-citizen-id', email: 'citizen@example.com', full_name: 'Ayush (Demo User)', role: 'citizen' };
+      const demo = { id: 'demo-citizen-id', email: 'citizen@example.com', full_name: 'Ayush (Demo Citizen)', role: 'citizen' };
       localStorage.setItem('scms_demo_user', JSON.stringify(demo));
       return demo;
     }
@@ -360,12 +421,12 @@ const auth = {
 
   async loginViaEmailPassword(email, password) {
     if (!hasValidSupabaseConfig) {
-      const isMockAdmin = email.toLowerCase().includes('admin');
+      const isAuthorizedAdmin = isAuthorizedAdminEmail(email);
       const user = {
-        id: 'demo-' + (isMockAdmin ? 'admin' : 'citizen') + '-id',
+        id: isAuthorizedAdmin ? 'demo-admin-id' : 'demo-citizen-id',
         email,
-        full_name: email.split('@')[0],
-        role: isMockAdmin ? 'admin' : 'citizen',
+        full_name: isAuthorizedAdmin ? 'System Administrator' : email.split('@')[0],
+        role: isAuthorizedAdmin ? 'admin' : 'citizen',
       };
       localStorage.setItem('scms_demo_user', JSON.stringify(user));
       return { user };
@@ -376,12 +437,16 @@ const auth = {
     return data;
   },
 
-  async register({ email, password }) {
+  async register({ email, password, full_name }) {
+    if (isAuthorizedAdminEmail(email)) {
+      throw new Error('This authorized admin email cannot be registered publicly. Please sign in via the Admin portal.');
+    }
+
     if (!hasValidSupabaseConfig) {
       const user = {
         id: 'demo-citizen-id',
         email,
-        full_name: email.split('@')[0],
+        full_name: full_name || email.split('@')[0],
         role: 'citizen',
       };
       localStorage.setItem('scms_demo_user', JSON.stringify(user));
@@ -393,7 +458,7 @@ const auth = {
       password,
       options: {
         data: {
-          full_name: email.split('@')[0],
+          full_name: full_name || email.split('@')[0],
           role: 'citizen',
         },
       },
@@ -427,23 +492,22 @@ const auth = {
   },
 
   async loginWithProvider(provider, returnTo = '/') {
-    const isAdmin = returnTo?.includes('admin') || window.location.search.includes('role=admin');
-    const targetRole = isAdmin ? 'admin' : 'citizen';
-    localStorage.setItem('scms_auth_intended_role', targetRole);
+    const isAdminFlow = returnTo?.includes('admin') || window.location.search.includes('role=admin');
 
     if (!hasValidSupabaseConfig) {
+      const email = isAdminFlow ? AUTHORIZED_ADMIN_EMAIL : 'citizen.google@example.com';
       const user = {
-        id: isAdmin ? 'demo-admin-google-id' : 'demo-google-id',
-        email: isAdmin ? 'admin.google@example.com' : 'google.user@example.com',
-        full_name: isAdmin ? 'Google Admin User' : 'Google Citizen User',
-        role: targetRole,
+        id: isAdminFlow ? 'demo-admin-google-id' : 'demo-google-id',
+        email,
+        full_name: isAdminFlow ? 'System Administrator' : 'Google Citizen User',
+        role: isAdminFlow ? 'admin' : 'citizen',
       };
       localStorage.setItem('scms_demo_user', JSON.stringify(user));
-      window.location.href = returnTo || (isAdmin ? '/admin' : '/');
+      window.location.href = returnTo || (isAdminFlow ? '/admin' : '/');
       return;
     }
 
-    const redirectTo = window.location.origin + (returnTo || (isAdmin ? '/admin' : '/'));
+    const redirectTo = window.location.origin + (returnTo || (isAdminFlow ? '/admin' : '/'));
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
@@ -476,13 +540,15 @@ const auth = {
     return data;
   },
 
-  async updateMe({ full_name, role }) {
+  async updateMe({ full_name, avatar_url, phone }) {
+    // Role is strictly immutable by any user to prevent privilege escalation
     if (!hasValidSupabaseConfig) {
       const cur = await this.me();
       const updated = {
         ...cur,
         ...(full_name !== undefined ? { full_name } : {}),
-        ...(role !== undefined ? { role } : {}),
+        ...(avatar_url !== undefined ? { avatar_url } : {}),
+        ...(phone !== undefined ? { phone } : {}),
       };
       localStorage.setItem('scms_demo_user', JSON.stringify(updated));
       return updated;
@@ -490,7 +556,8 @@ const auth = {
 
     const updates = {};
     if (full_name !== undefined) updates.full_name = full_name;
-    if (role !== undefined) updates.role = role;
+    if (avatar_url !== undefined) updates.avatar_url = avatar_url;
+    if (phone !== undefined) updates.phone = phone;
 
     const { data: { user }, error: authErr } = await supabase.auth.updateUser({
       data: updates,
@@ -498,18 +565,16 @@ const auth = {
     if (authErr) throw authErr;
 
     try {
-      await supabase.from('profiles').upsert({
-        id: user.id,
+      await supabase.from('profiles').update({
         ...updates,
         updated_at: new Date().toISOString(),
-      });
+      }).eq('id', user.id);
     } catch {}
 
+    const cur = await this.me();
     return {
-      id: user.id,
-      email: user.email,
-      full_name: full_name !== undefined ? full_name : (user.user_metadata?.full_name || ''),
-      role: role !== undefined ? role : (user.user_metadata?.role || 'citizen'),
+      ...cur,
+      ...updates,
     };
   },
 

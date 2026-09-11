@@ -73,10 +73,14 @@ export default function SubmitComplaint() {
     }
     setSubmitting(true);
     try {
+      const currentUser = await api.auth.me().catch(() => null);
       const now = new Date().toISOString();
       const expectedDate = computeExpectedDate(now, estimatedDays);
       const complaint = {
         ...form,
+        created_by_id: currentUser?.id || null,
+        citizen_name: currentUser?.full_name || currentUser?.email?.split('@')[0] || 'Citizen',
+        citizen_email: currentUser?.email || '',
         priority: ai?.priority || "Medium",
         department: ai?.suggested_department || "",
         ai_summary: ai?.ai_summary || "",
@@ -103,7 +107,8 @@ export default function SubmitComplaint() {
         message: `Your complaint "${form.title}" has been received. Expected resolution: ${formatExpectedResolution(estimatedDays)}.`,
         type: "system",
         complaint_id: created.id,
-      });
+        user_id: currentUser?.id || null,
+      }).catch(() => {});
 
       showToast("Complaint submitted successfully", "success");
       navigate(`/track?id=${created.id}`);

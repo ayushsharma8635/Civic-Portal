@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
-import { Menu, LogOut, ShieldCheck, User } from 'lucide-react';
+import { Outlet } from 'react-router-dom';
+import { Menu, LogOut, ShieldCheck } from 'lucide-react';
 import { api } from '@/api/supabaseClient';
 import Sidebar from '@/components/Sidebar';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 export default function Layout() {
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     api.auth.me().then(setUser).catch(() => setUser(null));
@@ -19,17 +18,6 @@ export default function Layout() {
   const handleLogout = async () => {
     await api.auth.logout();
     window.location.href = '/login';
-  };
-
-  const handleToggleRole = async () => {
-    const nextRole = user?.role === 'admin' ? 'citizen' : 'admin';
-    const updated = await api.auth.updateMe({ role: nextRole });
-    setUser(updated);
-    if (nextRole === 'admin') {
-      navigate('/admin');
-    } else {
-      navigate('/');
-    }
   };
 
   return (
@@ -44,30 +32,14 @@ export default function Layout() {
             Smart Complaint Management System
           </h2>
           <div className="flex items-center gap-2 ml-auto">
-            {user && (
-              <button
-                type="button"
-                onClick={handleToggleRole}
-                title={`Currently in ${user.role === 'admin' ? 'Admin' : 'Citizen'} mode. Click to switch.`}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                  user.role === 'admin'
-                    ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20 dark:text-emerald-400'
-                    : 'bg-primary/10 text-primary border-primary/30 hover:bg-primary/20'
-                }`}
+            {user?.role === 'admin' && (
+              <div
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 dark:text-emerald-400"
+                title="Signed in as System Administrator"
               >
-                {user.role === 'admin' ? (
-                  <>
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    <span>Admin Mode</span>
-                  </>
-                ) : (
-                  <>
-                    <User className="h-3.5 w-3.5" />
-                    <span>Citizen Mode</span>
-                  </>
-                )}
-                <span className="text-[10px] opacity-60 underline ml-0.5">Switch</span>
-              </button>
+                <ShieldCheck className="h-3.5 w-3.5" />
+                <span>Administrator</span>
+              </div>
             )}
             <NotificationBell />
             <ThemeToggle />

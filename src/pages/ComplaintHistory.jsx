@@ -42,7 +42,11 @@ export default function ComplaintHistory() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const unsub = api.entities.Complaint.subscribe(() => load());
+    return unsub;
+  }, []);
 
   const filtered = complaints.filter((c) => {
     if (filter !== 'All' && c.status !== filter) return false;

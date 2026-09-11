@@ -38,7 +38,14 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     load();
-    const unsub = api.entities.Complaint.subscribe(() => load());
+    const unsub = api.entities.Complaint.subscribe((payload) => {
+      load();
+      if (payload?.eventType === 'INSERT') {
+        showToast(`Live update: New complaint "${payload.new?.title || 'Civic Issue'}" received`, 'info');
+      } else if (payload?.eventType === 'UPDATE') {
+        showToast(`Live update: Complaint status changed to "${payload.new?.status}"`, 'info');
+      }
+    });
     return unsub;
   }, []);
 
@@ -110,9 +117,15 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-heading font-bold text-foreground">Admin Dashboard</h1>
-        <p className="text-muted-foreground text-sm">Analytics and insights across all complaints.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-heading font-bold text-foreground">Admin Dashboard</h1>
+          <p className="text-muted-foreground text-sm">Analytics and insights across all complaints.</p>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium w-fit">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Supabase Realtime Live</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

@@ -23,19 +23,30 @@ export default function Home() {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const loadComplaints = async (userId) => {
+    try {
+      const list = await api.entities.Complaint.filter({ created_by_id: userId }, '-created_date', 200);
+      setComplaints(list.items || list || []);
+    } catch (e) {
+      console.warn('Could not load complaints:', e.message);
+    }
+  };
+
   useEffect(() => {
+    let unsub = () => {};
     (async () => {
       try {
         const u = await api.auth.me();
         setUser(u);
-        const list = await api.entities.Complaint.filter({ created_by_id: u.id }, '-created_date', 200);
-        setComplaints(list.items || list || []);
+        await loadComplaints(u.id);
+        unsub = api.entities.Complaint.subscribe(() => loadComplaints(u.id));
       } catch (e) {
         showToast('Could not load complaints: ' + e.message, 'error');
       } finally {
         setLoading(false);
       }
     })();
+    return () => unsub();
   }, []);
 
   const stats = useMemo(() => {

@@ -18,6 +18,7 @@ import AdminComplaints from '@/pages/AdminComplaints';
 import AdminAreas from '@/pages/AdminAreas';
 import ComplaintMapPage from '@/pages/ComplaintMapPage';
 import AdminOfficers from '@/pages/AdminOfficers';
+import AdminProtectedRoute from '@/components/AdminProtectedRoute';
 import OfficerProtectedRoute from '@/components/OfficerProtectedRoute';
 import OfficerLayout from '@/components/OfficerLayout';
 import OfficerComplaints from '@/pages/OfficerComplaints';
@@ -57,6 +58,8 @@ const AuthenticatedApp = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+
+      {/* Citizen Protected Routes */}
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
@@ -64,6 +67,12 @@ const AuthenticatedApp = () => {
           <Route path="/track" element={<ComplaintTracking />} />
           <Route path="/history" element={<ComplaintHistory />} />
           <Route path="/profile" element={<Profile />} />
+        </Route>
+      </Route>
+
+      {/* Strict Single-Admin Protected Routes */}
+      <Route element={<AdminProtectedRoute />}>
+        <Route element={<Layout />}>
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/complaints" element={<AdminComplaints />} />
           <Route path="/admin/areas" element={<AdminAreas />} />

@@ -4,7 +4,7 @@ import GoogleIcon from '@/components/GoogleIcon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/api/supabaseClient';
+import { supabase, isAuthorizedAdminEmail, AUTHORIZED_ADMIN_EMAIL } from '@/api/supabaseClient';
 
 // Helper to decode Google JWT token
 function parseJwt(token) {
@@ -28,7 +28,7 @@ let initializedGsiClientId = null;
 let activeGsiHandler = null;
 
 export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citizen', onSignIn = (_user) => {} }) {
-  const [role, setRole] = useState(defaultRole);
+  const role = defaultRole;
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [customClientId, setCustomClientId] = useState(() => localStorage.getItem('scms_google_client_id') || '');
@@ -49,16 +49,21 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
     const payload = parseJwt(response.credential);
     if (!payload) return;
 
-    const currentRole = roleRef.current;
+    const isAuthorizedAdmin = isAuthorizedAdminEmail(payload.email);
+    if (defaultRole === 'admin' && !isAuthorizedAdmin) {
+      alert(`Access denied: Only the authorized administrator account (${AUTHORIZED_ADMIN_EMAIL}) can sign in as Admin.`);
+      return;
+    }
+
+    const assignedRole = isAuthorizedAdmin ? 'admin' : 'citizen';
     const verifiedUser = {
       id: 'google-' + (payload.sub || Math.random().toString(36).substring(2, 9)),
       email: payload.email,
       full_name: payload.name || payload.email.split('@')[0],
       avatar_url: payload.picture,
-      role: currentRole,
+      role: assignedRole,
     };
     localStorage.setItem('scms_demo_user', JSON.stringify(verifiedUser));
-    localStorage.setItem('scms_auth_intended_role', currentRole);
 
     try {
       if (supabase?.auth?.signInWithIdToken) {
@@ -74,7 +79,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
     if (onSignInRef.current) {
       onSignInRef.current(verifiedUser);
     } else {
-      window.location.href = currentRole === 'admin' ? '/admin' : '/';
+      window.location.href = assignedRole === 'admin' ? '/admin' : '/';
     }
   };
 
@@ -129,20 +134,26 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
     e.preventDefault();
     if (!email) return;
 
+    const isAuthorizedAdmin = isAuthorizedAdminEmail(email.trim());
+    if (defaultRole === 'admin' && !isAuthorizedAdmin) {
+      alert(`Access denied: Only the authorized administrator account (${AUTHORIZED_ADMIN_EMAIL}) can sign in as Admin.`);
+      return;
+    }
+
+    const assignedRole = isAuthorizedAdmin ? 'admin' : 'citizen';
     const user = {
       id: 'google-user-' + Math.random().toString(36).substring(2, 9),
       email: email.trim(),
       full_name: fullName.trim() || email.split('@')[0],
-      role,
+      role: assignedRole,
     };
 
     localStorage.setItem('scms_demo_user', JSON.stringify(user));
-    localStorage.setItem('scms_auth_intended_role', role);
 
     if (onSignIn) {
       onSignIn(user);
     } else {
-      window.location.href = role === 'admin' ? '/admin' : '/';
+      window.location.href = assignedRole === 'admin' ? '/admin' : '/';
     }
   };
 
@@ -170,47 +181,30 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
           </div>
           <div>
             <h3 className="font-heading font-semibold text-lg text-foreground">Sign in with Google</h3>
-            <p className="text-xs text-muted-foreground">Select your access role and sign in</p>
+            <p className="text-xs text-muted-foreground">
+              {defaultRole === 'admin' ? 'Authorized System Administrator' : 'Citizen Grievance Redressal'}
+            </p>
           </div>
         </div>
 
-        {/* Access Level Picker */}
-        <div className="mb-5 space-y-2">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase">1. Choose Access Level</Label>
-          <div className="grid grid-cols-2 gap-2.5">
-            <button
-              type="button"
-              onClick={() => setRole('citizen')}
-              className={`p-3 rounded-xl border text-left transition-all ${
-                role === 'citizen'
-                  ? 'border-primary bg-primary/10 ring-1 ring-primary text-foreground'
-                  : 'border-border bg-muted/30 text-muted-foreground hover:border-border/80'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <User className={`h-4 w-4 ${role === 'citizen' ? 'text-primary' : 'text-muted-foreground'}`} />
-                <span className="text-sm font-semibold">Citizen</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-tight">Submit & track complaints</p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setRole('admin')}
-              className={`p-3 rounded-xl border text-left transition-all ${
-                role === 'admin'
-                  ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500 text-foreground'
-                  : 'border-border bg-muted/30 text-muted-foreground hover:border-border/80'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <Shield className={`h-4 w-4 ${role === 'admin' ? 'text-emerald-500' : 'text-muted-foreground'}`} />
-                <span className="text-sm font-semibold">Admin</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-tight">Full system access</p>
-            </button>
+        {/* Access Level Info */}
+        {defaultRole === 'admin' ? (
+          <div className="mb-4 p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center gap-2.5 text-xs">
+            <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div>
+              <p className="font-semibold text-emerald-700 dark:text-emerald-300">Administrator Portal</p>
+              <p className="text-muted-foreground text-[11px]">Only the authorized system administrator account can access this portal.</p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="mb-4 p-3 rounded-xl border border-primary/20 bg-primary/5 flex items-center gap-2.5 text-xs">
+            <User className="w-4 h-4 text-primary shrink-0" />
+            <div>
+              <p className="font-semibold text-primary">Citizen Portal</p>
+              <p className="text-muted-foreground text-[11px]">Sign in to submit complaints and track resolution status.</p>
+            </div>
+          </div>
+        )}
 
         {/* Official Google GSI Button Section */}
         {activeClientId ? (
@@ -225,7 +219,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
           </div>
         ) : (
           <div className="mb-4 space-y-3">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase">2. Sign In Directly</Label>
+            <Label className="text-xs font-semibold text-muted-foreground uppercase">Sign In Directly</Label>
 
             {/* Direct Google ID Email Input */}
             <form onSubmit={handleManualSubmit} className="space-y-3">
@@ -234,7 +228,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
                 <Input
                   id="google-email"
                   type="email"
-                  placeholder="e.g. yourname@gmail.com"
+                  placeholder={defaultRole === 'admin' ? AUTHORIZED_ADMIN_EMAIL : 'yourname@gmail.com'}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -257,7 +251,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
 
               <Button type="submit" className="w-full h-10 font-medium">
                 <GoogleIcon className="w-4 h-4 mr-2" />
-                Sign in as {role === 'admin' ? 'Administrator' : 'Citizen'}
+                Continue with Google
               </Button>
             </form>
           </div>

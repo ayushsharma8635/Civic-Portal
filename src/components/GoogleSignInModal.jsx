@@ -63,8 +63,6 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
       avatar_url: payload.picture,
       role: assignedRole,
     };
-    localStorage.setItem('scms_demo_user', JSON.stringify(verifiedUser));
-
     try {
       if (supabase?.auth?.signInWithIdToken) {
         await supabase.auth.signInWithIdToken({
@@ -77,7 +75,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
     }
 
     if (onSignInRef.current) {
-      onSignInRef.current(verifiedUser);
+      onSignInRef.current({ email: payload.email, role: assignedRole });
     } else {
       window.location.href = assignedRole === 'admin' ? '/admin' : '/';
     }
@@ -130,30 +128,17 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
 
   if (!isOpen) return null;
 
-  const handleManualSubmit = (e) => {
-    e.preventDefault();
-    if (!email) return;
-
-    const isAuthorizedAdmin = isAuthorizedAdminEmail(email.trim());
-    if (defaultRole === 'admin' && !isAuthorizedAdmin) {
-      alert(`Access denied: Only the authorized administrator account (${AUTHORIZED_ADMIN_EMAIL}) can sign in as Admin.`);
-      return;
-    }
-
-    const assignedRole = isAuthorizedAdmin ? 'admin' : 'citizen';
-    const user = {
-      id: 'google-user-' + Math.random().toString(36).substring(2, 9),
-      email: email.trim(),
-      full_name: fullName.trim() || email.split('@')[0],
-      role: assignedRole,
-    };
-
-    localStorage.setItem('scms_demo_user', JSON.stringify(user));
-
-    if (onSignIn) {
-      onSignIn(user);
-    } else {
-      window.location.href = assignedRole === 'admin' ? '/admin' : '/';
+  const handleOAuthSignIn = async () => {
+    try {
+      const returnTo = defaultRole === 'admin' ? '/admin' : '/';
+      await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + returnTo,
+        },
+      });
+    } catch (err) {
+      alert('Google OAuth Error: ' + (err.message || 'Failed to initialize Google login'));
     }
   };
 
@@ -193,7 +178,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
             <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <div>
               <p className="font-semibold text-emerald-700 dark:text-emerald-300">Administrator Portal</p>
-              <p className="text-muted-foreground text-[11px]">Only the authorized system administrator account can access this portal.</p>
+              <p className="text-muted-foreground text-[11px]">Only the authorized system administrator account ({AUTHORIZED_ADMIN_EMAIL}) can access this portal.</p>
             </div>
           </div>
         ) : (
@@ -210,7 +195,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
         {activeClientId ? (
           <div className="mb-5 p-4 rounded-xl border border-primary/20 bg-primary/5 text-center space-y-3">
             <p className="text-xs font-medium text-foreground">
-              Google Official Popup is active! Click below:
+              Google Sign-In ready:
             </p>
             <div className="flex justify-center" ref={googleBtnRef}></div>
             <div className="flex items-center justify-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
@@ -219,41 +204,17 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
           </div>
         ) : (
           <div className="mb-4 space-y-3">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase">Sign In Directly</Label>
-
-            {/* Direct Google ID Email Input */}
-            <form onSubmit={handleManualSubmit} className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="google-email" className="text-xs">Your Google Email ID</Label>
-                <Input
-                  id="google-email"
-                  type="email"
-                  placeholder={defaultRole === 'admin' ? AUTHORIZED_ADMIN_EMAIL : 'yourname@gmail.com'}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoFocus
-                  className="h-10"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="google-name" className="text-xs">Your Name (Optional)</Label>
-                <Input
-                  id="google-name"
-                  type="text"
-                  placeholder="e.g. Ayush"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="h-10"
-                />
-              </div>
-
-              <Button type="submit" className="w-full h-10 font-medium">
-                <GoogleIcon className="w-4 h-4 mr-2" />
-                Continue with Google
-              </Button>
-            </form>
+            <Button
+              type="button"
+              onClick={handleOAuthSignIn}
+              className="w-full h-11 font-medium"
+            >
+              <GoogleIcon className="w-4 h-4 mr-2" />
+              Continue with Google Account
+            </Button>
+            <p className="text-[11px] text-muted-foreground text-center">
+              Authenticates securely through Supabase Auth.
+            </p>
           </div>
         )}
 

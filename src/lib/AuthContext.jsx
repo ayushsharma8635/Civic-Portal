@@ -73,8 +73,13 @@ export const AuthProvider = ({ children }) => {
       }
 
       const currentUser = await api.auth.me();
-      setUser(currentUser);
-      setIsAuthenticated(true);
+      if (currentUser) {
+        setUser(currentUser);
+        setIsAuthenticated(true);
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
       setAuthError(null);
     } catch {
       setUser(null);

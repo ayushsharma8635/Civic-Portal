@@ -48,7 +48,7 @@ export default function CitizenLoginForm({ onBack }) {
   const handleGoogle = async () => {
     setError('');
     const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem('scms_google_client_id');
-    if (googleClientId || api.auth.isDemoMode()) {
+    if (googleClientId) {
       setShowGoogleModal(true);
     } else {
       try {

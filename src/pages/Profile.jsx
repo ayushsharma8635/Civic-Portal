@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Shield, Save, Loader2, AlertCircle } from 'lucide-react';
+import { User, Mail, Shield, Save, Loader2 } from 'lucide-react';
 import { api } from '@/api/supabaseClient';
 import { showToast } from '@/lib/toast';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -10,29 +10,21 @@ import { Label } from '@/components/ui/label';
 export default function Profile() {
   const [user, setUser] = useState(null);
   const [name, setName] = useState('');
-  const [role, setRole] = useState('citizen');
   const [saving, setSaving] = useState(false);
-  const isDemo = api.auth.isDemoMode();
 
   useEffect(() => {
     api.auth.me().then((u) => {
       setUser(u);
       setName(u?.full_name || '');
-      setRole(u?.role || 'citizen');
     }).catch(() => {});
   }, []);
 
   const save = async () => {
     setSaving(true);
     try {
-      const updated = await api.auth.updateMe({ full_name: name, role });
-      const roleChanged = user?.role !== updated.role;
+      const updated = await api.auth.updateMe({ full_name: name });
       setUser(updated);
       showToast('Profile updated successfully', 'success');
-      if (roleChanged) {
-        // Reload to update sidebar navigation permissions
-        setTimeout(() => window.location.reload(), 600);
-      }
     } catch (e) {
       showToast('Update failed: ' + e.message, 'error');
     } finally {
@@ -46,20 +38,8 @@ export default function Profile() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-heading font-bold text-foreground">Profile</h1>
-        <p className="text-muted-foreground text-sm">Manage your account information and role access.</p>
+        <p className="text-muted-foreground text-sm">Manage your account information and view your verified role.</p>
       </div>
-
-      {isDemo && (
-        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-sm flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold">Demo Authentication Active</p>
-            <p className="text-xs mt-1 leading-relaxed opacity-90">
-              Running locally with offline mock authentication. You can switch between <strong>Citizen</strong> and <strong>Administrator</strong> access below. To log in with your actual Google ID, connect live Supabase credentials in <code>.env.local</code>.
-            </p>
-          </div>
-        </div>
-      )}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Account Details</CardTitle></CardHeader>
@@ -71,7 +51,7 @@ export default function Profile() {
             <div>
               <p className="font-medium text-foreground">{user.full_name || 'Unnamed user'}</p>
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                <Shield className="h-3 w-3" /> {user.role === 'admin' ? 'Administrator' : 'Citizen'}
+                <Shield className="h-3 w-3 text-primary" /> {user.role === 'admin' ? 'Administrator' : 'Citizen'}
               </span>
             </div>
           </div>
@@ -88,40 +68,26 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label>Role & Access Level</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => setRole('citizen')}
-                className={`p-3.5 rounded-xl border text-left flex items-start gap-3 transition-all ${
-                  role === 'citizen'
-                    ? 'border-primary bg-primary/10 ring-1 ring-primary text-foreground'
-                    : 'border-border bg-card text-muted-foreground hover:border-border/80'
-                }`}
-              >
-                <User className={`h-5 w-5 mt-0.5 ${role === 'citizen' ? 'text-primary' : 'text-muted-foreground'}`} />
-                <div>
-                  <div className="font-semibold text-sm">Citizen</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">Submit, track, and view personal complaints</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setRole('admin')}
-                className={`p-3.5 rounded-xl border text-left flex items-start gap-3 transition-all ${
-                  role === 'admin'
-                    ? 'border-primary bg-primary/10 ring-1 ring-primary text-foreground'
-                    : 'border-border bg-card text-muted-foreground hover:border-border/80'
-                }`}
-              >
-                <Shield className={`h-5 w-5 mt-0.5 ${role === 'admin' ? 'text-primary' : 'text-muted-foreground'}`} />
-                <div>
-                  <div className="font-semibold text-sm">Administrator</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">Full access: complaints, areas, officers & map</div>
-                </div>
-              </button>
+            <div className="flex items-center gap-2.5 text-sm text-foreground border border-input rounded-md px-3.5 py-2.5 bg-muted/20">
+              {user.role === 'admin' ? (
+                <>
+                  <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-300">System Administrator</span>
+                    <p className="text-xs text-muted-foreground">Authorized single administrator access.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <User className="h-4 w-4 text-primary shrink-0" />
+                  <div>
+                    <span className="font-semibold text-primary">Citizen</span>
+                    <p className="text-xs text-muted-foreground">Submit, track, and view local grievances.</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

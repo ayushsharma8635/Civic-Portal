@@ -452,7 +452,7 @@ export function isAuthorizedAdminEmail(email) {
 // Authentication Layer
 const auth = {
   isDemoMode() {
-    return !hasValidSupabaseConfig;
+    return false;
   },
 
   getAuthorizedAdminEmail() {
@@ -460,6 +460,12 @@ const auth = {
   },
 
   async me() {
+    // Purge any stale demo user key from previous offline/testing sessions
+    try {
+      localStorage.removeItem('scms_demo_user');
+      localStorage.removeItem('scms_auth_intended_role');
+    } catch {}
+
     let user = null;
 
     if (hasValidSupabaseConfig) {
@@ -517,40 +523,12 @@ const auth = {
       };
     }
 
-    // Check if there is a local / Google session stored in localStorage
-    const stored = localStorage.getItem('scms_demo_user');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (parsed && (parsed.email || parsed.id)) {
-          // Re-verify role against AUTHORIZED_ADMIN_EMAIL
-          parsed.role = isAuthorizedAdminEmail(parsed.email) ? 'admin' : 'citizen';
-          return parsed;
-        }
-      } catch {}
-    }
-
-    if (!hasValidSupabaseConfig) {
-      // Default demo citizen user when offline and no stored user
-      const demo = { id: 'demo-citizen-id', email: 'citizen@example.com', full_name: 'Ayush (Demo Citizen)', role: 'citizen' };
-      localStorage.setItem('scms_demo_user', JSON.stringify(demo));
-      return demo;
-    }
-
-    throw new Error('Not authenticated');
+    return null;
   },
 
   async loginViaEmailPassword(email, password) {
     if (!hasValidSupabaseConfig) {
-      const isAuthorizedAdmin = isAuthorizedAdminEmail(email);
-      const user = {
-        id: isAuthorizedAdmin ? 'demo-admin-id' : 'demo-citizen-id',
-        email,
-        full_name: isAuthorizedAdmin ? 'System Administrator' : email.split('@')[0],
-        role: isAuthorizedAdmin ? 'admin' : 'citizen',
-      };
-      localStorage.setItem('scms_demo_user', JSON.stringify(user));
-      return { user };
+      throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -564,14 +542,7 @@ const auth = {
     }
 
     if (!hasValidSupabaseConfig) {
-      const user = {
-        id: 'demo-citizen-id',
-        email,
-        full_name: full_name || email.split('@')[0],
-        role: 'citizen',
-      };
-      localStorage.setItem('scms_demo_user', JSON.stringify(user));
-      return { user };
+      throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
     }
 
     const { data, error } = await supabase.auth.signUp({
@@ -590,7 +561,7 @@ const auth = {
 
   async verifyOtp({ email, otpCode }) {
     if (!hasValidSupabaseConfig) {
-      return { access_token: 'demo_token' };
+      throw new Error('Supabase is not configured.');
     }
 
     const { data, error } = await supabase.auth.verifyOtp({
@@ -603,7 +574,9 @@ const auth = {
   },
 
   async resendOtp(email) {
-    if (!hasValidSupabaseConfig) return { success: true };
+    if (!hasValidSupabaseConfig) {
+      throw new Error('Supabase is not configured.');
+    }
     const { data, error } = await supabase.auth.resend({
       type: 'signup',
       email,
@@ -616,16 +589,7 @@ const auth = {
     const isAdminFlow = returnTo?.includes('admin') || window.location.search.includes('role=admin');
 
     if (!hasValidSupabaseConfig) {
-      const email = isAdminFlow ? AUTHORIZED_ADMIN_EMAIL : 'citizen.google@example.com';
-      const user = {
-        id: isAdminFlow ? 'demo-admin-google-id' : 'demo-google-id',
-        email,
-        full_name: isAdminFlow ? 'System Administrator' : 'Google Citizen User',
-        role: isAdminFlow ? 'admin' : 'citizen',
-      };
-      localStorage.setItem('scms_demo_user', JSON.stringify(user));
-      window.location.href = returnTo || (isAdminFlow ? '/admin' : '/');
-      return;
+      throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
     }
 
     const redirectTo = window.location.origin + (returnTo || (isAdminFlow ? '/admin' : '/'));
@@ -646,7 +610,9 @@ const auth = {
   },
 
   async resetPasswordRequest(email) {
-    if (!hasValidSupabaseConfig) return { success: true };
+    if (!hasValidSupabaseConfig) {
+      throw new Error('Supabase is not configured.');
+    }
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin + '/reset-password',
     });
@@ -655,34 +621,26 @@ const auth = {
   },
 
   async resetPassword({ resetToken, newPassword }) {
-    if (!hasValidSupabaseConfig) return { success: true };
+    if (!hasValidSupabaseConfig) {
+      throw new Error('Supabase is not configured.');
+    }
     const { data, error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) throw error;
     return data;
   },
 
   /**
-   * @param {{ full_name?: string; avatar_url?: string; phone?: string; role?: string }} [payload]
+   * @param {{ full_name?: string; avatar_url?: string; phone?: string }} [payload]
    */
-  async updateMe({ full_name, avatar_url, phone, role } = {}) {
+  async updateMe({ full_name, avatar_url, phone } = {}) {
     if (!hasValidSupabaseConfig) {
-      const cur = await this.me();
-      const updated = {
-        ...cur,
-        ...(full_name !== undefined ? { full_name } : {}),
-        ...(avatar_url !== undefined ? { avatar_url } : {}),
-        ...(phone !== undefined ? { phone } : {}),
-        ...(role !== undefined ? { role } : {}),
-      };
-      localStorage.setItem('scms_demo_user', JSON.stringify(updated));
-      return updated;
+      throw new Error('Supabase is not configured.');
     }
 
     const updates = {};
     if (full_name !== undefined) updates.full_name = full_name;
     if (avatar_url !== undefined) updates.avatar_url = avatar_url;
     if (phone !== undefined) updates.phone = phone;
-    if (role !== undefined) updates.role = role;
 
     const { data: { user }, error: authErr } = await supabase.auth.updateUser({
       data: updates,
@@ -704,8 +662,10 @@ const auth = {
   },
 
   async logout(redirectUrl) {
-    localStorage.removeItem('scms_demo_user');
-    localStorage.removeItem('scms_auth_intended_role');
+    try {
+      localStorage.removeItem('scms_demo_user');
+      localStorage.removeItem('scms_auth_intended_role');
+    } catch {}
     if (hasValidSupabaseConfig) {
       try {
         await supabase.auth.signOut();
@@ -728,7 +688,7 @@ const auth = {
 
   isAuthenticated() {
     if (!hasValidSupabaseConfig) {
-      return Boolean(localStorage.getItem('scms_demo_user'));
+      return false;
     }
     return Boolean(supabase.auth.getSession());
   },

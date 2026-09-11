@@ -67,7 +67,7 @@ CREATE POLICY "Users can update their own profile"
 -- 2. DEPARTMENTS TABLE (UUID Primary Key)
 CREATE TABLE IF NOT EXISTS public.departments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
+  name TEXT UNIQUE NOT NULL,
   description TEXT,
   head TEXT,
   email TEXT,
@@ -91,7 +91,7 @@ CREATE POLICY "Departments are editable by authenticated users"
 -- 3. AREAS TABLE (UUID Primary Key)
 CREATE TABLE IF NOT EXISTS public.areas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
+  name TEXT UNIQUE NOT NULL,
   city TEXT DEFAULT 'Kanpur',
   ward TEXT,
   district TEXT DEFAULT 'Kanpur Nagar',
@@ -357,8 +357,9 @@ CREATE POLICY "Allow upload access on complaint-media"
   WITH CHECK (bucket_id = 'complaint-media');
 
 -- ==============================================================================
--- INITIAL SEED DATA (Valid UUIDs for all rows)
+-- INITIAL SEED DATA (Valid UUIDs for all rows, idempotent on id or unique name)
 -- ==============================================================================
+-- Clean up any legacy or duplicate department entries if present
 INSERT INTO public.departments (id, name, description, head, email, phone)
 VALUES
   ('a0000000-0000-0000-0000-000000000001', 'Public Works Department (PWD)', 'Road repairs, potholes, sidewalks', 'Er. R. K. Verma', 'pwd.kanpur@nic.in', '+91 512 2548901'),
@@ -367,7 +368,11 @@ VALUES
   ('a0000000-0000-0000-0000-000000000004', 'Solid Waste & Sanitation (Nagar Nigam)', 'Garbage collection, illegal dumping', 'Dr. Alok Pandey', 'sanitation.knn@nic.in', '+91 512 2534567'),
   ('a0000000-0000-0000-0000-000000000005', 'Health & Vector Control', 'Mosquito fogging, stray animals', 'Dr. Meena Gupta', 'health.knn@nic.in', '+91 512 2534890'),
   ('a0000000-0000-0000-0000-000000000006', 'Traffic & Public Safety', 'Traffic signals, illegal parking', 'Inspector Rajesh Kumar', 'traffic.kanpur@uppolice.gov.in', '+91 512 2304100')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (name) DO UPDATE SET
+  description = EXCLUDED.description,
+  head = EXCLUDED.head,
+  email = EXCLUDED.email,
+  phone = EXCLUDED.phone;
 
 INSERT INTO public.areas (id, name, city, ward, district, landmark, latitude, longitude, active)
 VALUES
@@ -377,13 +382,20 @@ VALUES
   ('b0000000-0000-0000-0000-000000000004', 'Swaroop Nagar', 'Kanpur', 'Ward 21', 'Kanpur Nagar', 'Near Motijheel', 26.4815, 80.3182, true),
   ('b0000000-0000-0000-0000-000000000005', 'Govind Nagar', 'Kanpur', 'Ward 54', 'Kanpur Nagar', 'C-Block Market', 26.4432, 80.3015, true),
   ('b0000000-0000-0000-0000-000000000006', 'Kidwai Nagar', 'Kanpur', 'Ward 62', 'Kanpur Nagar', 'Central Park', 26.4358, 80.3341, true)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (name) DO UPDATE SET
+  city = EXCLUDED.city,
+  ward = EXCLUDED.ward,
+  district = EXCLUDED.district,
+  landmark = EXCLUDED.landmark,
+  latitude = EXCLUDED.latitude,
+  longitude = EXCLUDED.longitude,
+  active = EXCLUDED.active;
 
 INSERT INTO public.officers (id, name, employee_id, email, mobile, username, password_hash, department, area_name, area_id, designation, status)
 VALUES
   ('c0000000-0000-0000-0000-000000000001', 'Er. Vikram Singh', 'OFF-KN-2024-01', 'vikram.singh@kanpur.gov.in', '9876543210', 'officer1', 'password123', 'Public Works Department (PWD)', 'Kalyanpur', 'b0000000-0000-0000-0000-000000000001', 'Junior Engineer', 'Active'),
   ('c0000000-0000-0000-0000-000000000002', 'Smt. Sunita Yadav', 'OFF-KN-2024-02', 'sunita.yadav@kanpur.gov.in', '9876543211', 'officer2', 'password123', 'Jal Sansthan (Water & Drainage)', 'Kakadeo', 'b0000000-0000-0000-0000-000000000002', 'Assistant Engineer', 'Active')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (username) DO NOTHING;
 
 -- ==============================================================================
 -- SUPABASE REALTIME PUBLICATION CONFIGURATION

@@ -617,15 +617,17 @@ const auth = {
     return data;
   },
 
-  async loginWithProvider(provider, returnTo = '/') {
+  async loginWithProvider(provider, returnTo = '/citizen/dashboard') {
     const isAdminFlow = returnTo?.includes('admin') || (typeof window !== 'undefined' && window.location.search.includes('role=admin'));
 
     if (!hasValidSupabaseConfig) {
       throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
     }
 
-    const targetPath = returnTo || (isAdminFlow ? '/admin' : '/');
+    const defaultTarget = isAdminFlow ? '/admin/dashboard' : '/citizen/dashboard';
+    const targetPath = returnTo || defaultTarget;
     const redirectTo = getAuthRedirectUrl(targetPath);
+    console.log('[AUTH] navigating to: OAuth provider with redirectTo =', redirectTo);
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {

@@ -6,6 +6,7 @@ import RoleSelection from '@/components/login/RoleSelection';
 import CitizenLoginForm from '@/components/login/CitizenLoginForm';
 import OfficerLoginForm from '@/components/login/OfficerLoginForm';
 import AdminLoginForm from '@/components/login/AdminLoginForm';
+import { getConfiguredAdminEmail } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { UserCheck, ArrowRight, LogOut, AlertCircle } from 'lucide-react';
 
@@ -27,12 +28,29 @@ export default function Login() {
     if (oauthError) return;
 
     if (isAuthenticated && user) {
+      console.log('[AUTH] user email:', user.email);
+      console.log('[AUTH] admin email:', getConfiguredAdminEmail());
+      console.log('[AUTH] admin check:', user.role === 'admin');
+      console.log('[AUTH] selected role:', user.role);
+
       const returnTo = safeReturnTo();
-      // If user is not admin, prevent redirecting back to /admin to avoid infinite loop
-      if (returnTo && returnTo.startsWith('/admin') && user.role !== 'admin') {
-        return;
+      let target;
+      if (user.role === 'admin') {
+        if (returnTo && returnTo.startsWith('/admin')) {
+          target = returnTo;
+        } else {
+          target = '/admin/dashboard';
+        }
+      } else {
+        if (returnTo && returnTo !== '/login' && !returnTo.startsWith('/admin')) {
+          target = returnTo;
+        } else {
+          target = '/citizen/dashboard';
+        }
       }
-      const target = returnTo && returnTo !== '/login' ? returnTo : (user.role === 'admin' ? '/admin' : '/');
+
+      console.log('[AUTH] navigating to:', target);
+      console.log('[AUTH] current route:', window.location.pathname);
       window.location.href = target;
     }
   }, [isAuthenticated, user, oauthError]);
@@ -62,7 +80,7 @@ export default function Login() {
             </span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <Link to={user.role === 'admin' ? '/admin' : '/'}>
+            <Link to={user.role === 'admin' ? '/admin/dashboard' : '/citizen/dashboard'}>
               <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs">
                 Dashboard <ArrowRight className="w-3 h-3 ml-1" />
               </Button>

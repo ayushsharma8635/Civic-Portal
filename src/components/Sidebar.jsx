@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 
 const userNav = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/citizen/dashboard', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/submit', label: 'Submit Complaint', icon: FilePlus },
   { to: '/track', label: 'Track Complaint', icon: Search },
   { to: '/history', label: 'My Complaints', icon: History },
@@ -14,7 +14,7 @@ const userNav = [
 ];
 
 const adminNav = [
-  { to: '/admin', label: 'Admin Dashboard', icon: ShieldCheck, end: true },
+  { to: '/admin/dashboard', label: 'Admin Dashboard', icon: ShieldCheck, end: true },
   { to: '/admin/complaints', label: 'Manage Complaints', icon: ListChecks },
   { to: '/admin/areas', label: 'Manage Areas', icon: MapPin },
   { to: '/admin/officers', label: 'Manage Officers', icon: User },

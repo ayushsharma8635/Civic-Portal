@@ -43,15 +43,22 @@ export const AuthProvider = ({ children }) => {
     if (!currentSession?.user) return null;
     const rawUser = currentSession.user;
     const email = (rawUser.email || '').trim().toLowerCase();
+    const adminEmail = getConfiguredAdminEmail();
     const isAdmin = isAuthorizedAdminEmail(email);
     const role = isAdmin ? 'admin' : 'citizen';
 
     let full_name = rawUser.user_metadata?.full_name || rawUser.user_metadata?.name || '';
     const avatar_url = rawUser.user_metadata?.avatar_url || rawUser.user_metadata?.picture || '';
 
+    console.log('[AUTH] user email:', email);
+    console.log('[AUTH] admin email:', adminEmail);
+    console.log('[AUTH] admin check:', isAdmin);
+    console.log('[AUTH] selected role:', role);
+    console.log('[AUTH] current route:', typeof window !== 'undefined' ? window.location.pathname : '');
+
     logAuth('ADMIN CHECK', {
       USER_EMAIL: email,
-      CONFIGURED_ADMIN: getConfiguredAdminEmail(),
+      CONFIGURED_ADMIN: adminEmail,
       IS_ADMIN: isAdmin,
       RESOLVED_ROLE: role,
     });
@@ -121,12 +128,17 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setIsLoadingAuth(false);
       setAuthChecked(true);
+      console.log('[AUTH] auth loading: false');
     }
   }, [resolveUserFromSession]);
 
   useEffect(() => {
     let isMounted = true;
     let fallbackTimer = null;
+
+    console.log('[AUTH] initialization started');
+    console.log('[AUTH] auth loading: true');
+    console.log('[AUTH] current route:', typeof window !== 'undefined' ? window.location.pathname : '');
 
     // Check for provider error parameters in URL
     if (typeof window !== 'undefined') {
@@ -146,6 +158,7 @@ export const AuthProvider = ({ children }) => {
         setAuthError({ type: 'oauth_error', message });
         setIsLoadingAuth(false);
         setAuthChecked(true);
+        console.log('[AUTH] auth loading: false');
         cleanUrlOAuthParams();
         return;
       }
@@ -173,6 +186,7 @@ export const AuthProvider = ({ children }) => {
       switch (event) {
         case 'INITIAL_SESSION': {
           if (currentSession?.user) {
+            console.log('[AUTH] session restored: true');
             const resolvedUser = await resolveUserFromSession(currentSession);
             if (!isMounted) return;
             setSession(currentSession);
@@ -181,6 +195,7 @@ export const AuthProvider = ({ children }) => {
             setAuthError(null);
             setIsLoadingAuth(false);
             setAuthChecked(true);
+            console.log('[AUTH] auth loading: false');
             cleanUrlOAuthParams();
             logAuth('SESSION RESTORED (INITIAL_SESSION)', {
               USER_EMAIL: resolvedUser?.email,
@@ -188,23 +203,27 @@ export const AuthProvider = ({ children }) => {
             });
           } else if (hasCodeInUrl) {
             // OAuth PKCE exchange in flight — keep loading = true and wait for SIGNED_IN
+            console.log('[AUTH] session restored: pending (PKCE exchange in flight)');
             logAuth('INITIAL_SESSION PENDING', {
               REDIRECT_REASON: 'Waiting for Supabase OAuth PKCE exchange',
             });
           } else {
             // No stored session and no pending code in URL
+            console.log('[AUTH] session restored: false');
             setSession(null);
             setUser(null);
             setIsAuthenticated(false);
             setAuthError(null);
             setIsLoadingAuth(false);
             setAuthChecked(true);
+            console.log('[AUTH] auth loading: false');
           }
           break;
         }
 
         case 'SIGNED_IN': {
           if (currentSession?.user) {
+            console.log('[AUTH] session restored: true');
             const resolvedUser = await resolveUserFromSession(currentSession);
             if (!isMounted) return;
             setSession(currentSession);
@@ -213,6 +232,7 @@ export const AuthProvider = ({ children }) => {
             setAuthError(null);
             setIsLoadingAuth(false);
             setAuthChecked(true);
+            console.log('[AUTH] auth loading: false');
             cleanUrlOAuthParams();
             logAuth('SESSION ESTABLISHED (SIGNED_IN)', {
               USER_EMAIL: resolvedUser?.email,
@@ -223,12 +243,14 @@ export const AuthProvider = ({ children }) => {
         }
 
         case 'SIGNED_OUT': {
+          console.log('[AUTH] session restored: false');
           setSession(null);
           setUser(null);
           setIsAuthenticated(false);
           setAuthError(null);
           setIsLoadingAuth(false);
           setAuthChecked(true);
+          console.log('[AUTH] auth loading: false');
           logAuth('SIGNED_OUT');
           break;
         }

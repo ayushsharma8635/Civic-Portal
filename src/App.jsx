@@ -28,6 +28,14 @@ import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 
+const CitizenDashboardRoute = () => {
+  const { user } = useAuth();
+  if (user?.role === 'admin') {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+  return <Home />;
+};
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authChecked, authError, navigateToLogin } = useAuth();
 
@@ -62,7 +70,8 @@ const AuthenticatedApp = () => {
       {/* Citizen Protected Routes */}
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<Layout />}>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<CitizenDashboardRoute />} />
+          <Route path="/citizen/dashboard" element={<CitizenDashboardRoute />} />
           <Route path="/submit" element={<SubmitComplaint />} />
           <Route path="/track" element={<ComplaintTracking />} />
           <Route path="/history" element={<ComplaintHistory />} />
@@ -73,7 +82,8 @@ const AuthenticatedApp = () => {
       {/* Strict Single-Admin Protected Routes */}
       <Route element={<AdminProtectedRoute />}>
         <Route element={<Layout />}>
-          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/complaints" element={<AdminComplaints />} />
           <Route path="/admin/areas" element={<AdminAreas />} />
           <Route path="/admin/officers" element={<AdminOfficers />} />

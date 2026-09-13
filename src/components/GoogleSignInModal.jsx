@@ -68,7 +68,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
             await supabase.auth.signInWithOAuth({
               provider: 'google',
               options: {
-                redirectTo: getAuthRedirectUrl(assignedRole === 'admin' ? '/admin' : '/'),
+                redirectTo: getAuthRedirectUrl(assignedRole === 'admin' ? '/admin/dashboard' : '/citizen/dashboard'),
                 queryParams: { prompt: 'select_account' },
               },
             });
@@ -83,7 +83,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
     if (onSignInRef.current) {
       onSignInRef.current({ email: payload.email, role: assignedRole });
     } else {
-      window.location.href = assignedRole === 'admin' ? '/admin' : '/';
+      window.location.href = assignedRole === 'admin' ? '/admin/dashboard' : '/citizen/dashboard';
     }
   };
 

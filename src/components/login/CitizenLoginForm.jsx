@@ -37,7 +37,7 @@ export default function CitizenLoginForm({ onBack }) {
     setLoading(true);
     try {
       await api.auth.loginViaEmailPassword(email, password);
-      window.location.href = returnTo;
+      window.location.href = returnTo || '/citizen/dashboard';
     } catch (err) {
       setError(err.message || 'Invalid email or password');
     } finally {
@@ -52,7 +52,7 @@ export default function CitizenLoginForm({ onBack }) {
       setShowGoogleModal(true);
     } else {
       try {
-        await api.auth.loginWithProvider('google', returnTo);
+        await api.auth.loginWithProvider('google', returnTo || '/citizen/dashboard');
       } catch (err) {
         setError(err.message || 'Failed to initiate Google sign in');
         setShowGoogleModal(true);
@@ -68,7 +68,7 @@ export default function CitizenLoginForm({ onBack }) {
       footer={
         <>
           Don't have an account?{' '}
-          <Link to={'/register' + (returnTo !== '/' ? '?returnTo=' + encodeURIComponent(returnTo) : '')} className="text-primary font-medium hover:underline">Create one</Link>
+          <Link to={'/register' + (returnTo ? '?returnTo=' + encodeURIComponent(returnTo) : '')} className="text-primary font-medium hover:underline">Create one</Link>
         </>
       }
     >
@@ -78,7 +78,7 @@ export default function CitizenLoginForm({ onBack }) {
         defaultRole="citizen"
         onSignIn={(_user) => {
           setShowGoogleModal(false);
-          window.location.href = returnTo || '/';
+          window.location.href = returnTo || '/citizen/dashboard';
         }}
       />
 

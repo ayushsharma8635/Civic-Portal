@@ -54,7 +54,7 @@ export default function AdminLoginForm({ onBack }) {
         api.auth.logout('/login?role=admin');
         return;
       }
-      window.location.href = '/admin';
+      window.location.href = '/admin/dashboard';
     } catch (err) {
       const msg = err.message || '';
       if (msg.toLowerCase().includes('invalid login credentials') || msg.toLowerCase().includes('user not found')) {
@@ -76,7 +76,7 @@ export default function AdminLoginForm({ onBack }) {
       setShowGoogleModal(true);
     } else {
       try {
-        await api.auth.loginWithProvider('google', '/admin');
+        await api.auth.loginWithProvider('google', '/admin/dashboard');
       } catch (err) {
         setError(err.message || 'Failed to initiate Google sign in');
         setShowGoogleModal(true);
@@ -106,7 +106,7 @@ export default function AdminLoginForm({ onBack }) {
         defaultRole="admin"
         onSignIn={(_user) => {
           setShowGoogleModal(false);
-          window.location.href = '/admin';
+          window.location.href = '/admin/dashboard';
         }}
       />
 

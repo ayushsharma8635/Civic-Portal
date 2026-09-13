@@ -12,6 +12,9 @@ const DefaultFallback = () => (
 export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthenticatedElement }) {
   const { isAuthenticated, isLoadingAuth, authChecked, authError } = useAuth();
 
+  console.log('[AUTH] auth loading:', isLoadingAuth || !authChecked);
+  console.log('[AUTH] current route:', typeof window !== 'undefined' ? window.location.pathname : '');
+
   if (isLoadingAuth || !authChecked) {
     return fallback;
   }
@@ -21,12 +24,14 @@ export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthe
       return <UserNotRegisteredError />;
     }
     if (authError.type === 'oauth_error') {
+      console.log('[AUTH] navigating to: /login?error=' + encodeURIComponent(authError.message));
       return <Navigate to={`/login?error=${encodeURIComponent(authError.message)}`} replace />;
     }
     return unauthenticatedElement;
   }
 
   if (!isAuthenticated) {
+    console.log('[AUTH] navigating to: unauthenticated element (login)');
     return unauthenticatedElement;
   }
 

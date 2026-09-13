@@ -3,8 +3,7 @@ import { Shield, User, X, Key, ExternalLink } from 'lucide-react';
 import GoogleIcon from '@/components/GoogleIcon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { supabase, isAuthorizedAdminEmail, AUTHORIZED_ADMIN_EMAIL, getAuthRedirectUrl } from '@/api/supabaseClient';
+import { supabase, isAuthorizedAdminEmail, AUTHORIZED_ADMIN_EMAIL, getAuthRedirectUrl, hasValidSupabaseConfig } from '@/api/supabaseClient';
 
 // Helper to decode Google JWT token
 function parseJwt(token) {
@@ -64,15 +63,17 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
           token: response.credential,
         });
         if (error) {
-          console.warn('Supabase signInWithIdToken sync failed, falling back to OAuth redirect:', error.message);
-          await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-              redirectTo: getAuthRedirectUrl(assignedRole === 'admin' ? '/admin' : '/'),
-              queryParams: { prompt: 'select_account' },
-            },
-          });
-          return;
+          console.warn('Supabase signInWithIdToken sync failed, checking OAuth redirect:', error.message);
+          if (hasValidSupabaseConfig) {
+            await supabase.auth.signInWithOAuth({
+              provider: 'google',
+              options: {
+                redirectTo: getAuthRedirectUrl(assignedRole === 'admin' ? '/admin' : '/'),
+                queryParams: { prompt: 'select_account' },
+              },
+            });
+            return;
+          }
         }
       }
     } catch (e) {
@@ -135,6 +136,9 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
 
   const handleOAuthSignIn = async () => {
     try {
+      if (!hasValidSupabaseConfig) {
+        throw new Error('Supabase is not configured with a valid project URL. Please verify VITE_SUPABASE_URL in your Vercel Project Settings.');
+      }
       const currentRole = roleRef.current || defaultRole;
       const returnTo = currentRole === 'admin' ? '/admin' : '/';
       const redirectTo = getAuthRedirectUrl(returnTo);

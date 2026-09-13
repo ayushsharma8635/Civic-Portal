@@ -18,12 +18,13 @@ const envKey = (
 ).trim();
 
 // Detect whether valid Supabase credentials have been configured
-const hasValidSupabaseConfig = Boolean(
+export const hasValidSupabaseConfig = Boolean(
   envUrl &&
   envKey &&
-  envUrl.startsWith('http') &&
+  envUrl.startsWith('https://') &&
   !envUrl.includes('your-project') &&
-  !envUrl.includes('placeholder')
+  !envUrl.includes('placeholder') &&
+  !envUrl.includes('vutory')
 );
 
 // Fallback dummy client for build-time safety and graceful offline demo

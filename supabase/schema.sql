@@ -24,7 +24,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
-  RETURN LOWER(TRIM(COALESCE(auth.jwt() ->> 'email', ''))) = 'ayushsharmaedu8635@gmail.com';
+  RETURN LOWER(TRIM(COALESCE(auth.jwt() ->> 'email', ''))) = 'ayushsharma8635@gmail.com';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -33,7 +33,7 @@ CREATE OR REPLACE FUNCTION public.enforce_single_admin_role()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Revert any unauthorized attempt to set role='admin' back to 'citizen'
-  IF NEW.role = 'admin' AND LOWER(TRIM(COALESCE(NEW.email, ''))) NOT IN ('ayushsharmaedu8635@gmail.com') THEN
+  IF NEW.role = 'admin' AND LOWER(TRIM(COALESCE(NEW.email, ''))) NOT IN ('ayushsharma8635@gmail.com') THEN
     NEW.role := 'citizen';
   END IF;
   RETURN NEW;
@@ -73,7 +73,7 @@ DECLARE
   v_avatar TEXT := '';
 BEGIN
   -- Strict single-admin check: only the designated email can ever hold the 'admin' role
-  IF LOWER(TRIM(COALESCE(NEW.email, ''))) = 'ayushsharmaedu8635@gmail.com' THEN
+  IF LOWER(TRIM(COALESCE(NEW.email, ''))) = 'ayushsharma8635@gmail.com' THEN
     v_role := 'admin';
   ELSE
     v_role := 'citizen';
@@ -106,7 +106,7 @@ BEGIN
     full_name = COALESCE(NULLIF(public.profiles.full_name, ''), EXCLUDED.full_name),
     avatar_url = COALESCE(NULLIF(public.profiles.avatar_url, ''), EXCLUDED.avatar_url),
     role = CASE
-      WHEN LOWER(TRIM(COALESCE(NEW.email, ''))) = 'ayushsharmaedu8635@gmail.com' THEN 'admin'
+      WHEN LOWER(TRIM(COALESCE(NEW.email, ''))) = 'ayushsharma8635@gmail.com' THEN 'admin'
       ELSE 'citizen'
     END,
     updated_at = now();

@@ -444,7 +444,7 @@ const rawAdminEnv = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim(
 export const AUTHORIZED_ADMIN_EMAIL = (
   rawAdminEnv && !rawAdminEnv.includes('your_admin_email')
     ? rawAdminEnv
-    : 'ayushsharmaedu8635@gmail.com'
+    : 'ayushsharma8635@gmail.com'
 );
 
 export function isAuthorizedAdminEmail(email) {

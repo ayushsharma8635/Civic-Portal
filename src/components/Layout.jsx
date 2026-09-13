@@ -1,23 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu, LogOut, ShieldCheck } from 'lucide-react';
-import { api } from '@/api/supabaseClient';
+import { useAuth } from '@/lib/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationBell from '@/components/NotificationBell';
 import { Button } from '@/components/ui/button';
 
 export default function Layout() {
-  const [user, setUser] = useState(null);
+  const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    api.auth.me().then(setUser).catch(() => setUser(null));
-  }, []);
-
   const handleLogout = async () => {
-    await api.auth.logout();
-    window.location.href = '/login';
+    await logout();
   };
 
   return (

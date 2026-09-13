@@ -14,17 +14,28 @@ export default function Login() {
   const [role, setRole] = useState(urlParams.get('role'));
   const [oauthError] = useState(() => {
     const err = urlParams.get('error_description') || urlParams.get('error');
-    return err ? decodeURIComponent(err.replace(/\+/g, ' ')) : '';
+    if (!err) return '';
+    if (err === 'unauthorized') {
+      return 'Access denied. Your Google account is not authorized as an Administrator.';
+    }
+    return decodeURIComponent(err.replace(/\+/g, ' '));
   });
   const { isAuthenticated, user, logout } = useAuth();
 
   useEffect(() => {
+    // If there is an OAuth or authorization error displayed, do not auto-redirect
+    if (oauthError) return;
+
     if (isAuthenticated && user) {
       const returnTo = safeReturnTo();
+      // If user is not admin, prevent redirecting back to /admin to avoid infinite loop
+      if (returnTo && returnTo.startsWith('/admin') && user.role !== 'admin') {
+        return;
+      }
       const target = returnTo && returnTo !== '/login' ? returnTo : (user.role === 'admin' ? '/admin' : '/');
       window.location.href = target;
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, oauthError]);
 
   const selectRole = (r) => {
     setRole(r);

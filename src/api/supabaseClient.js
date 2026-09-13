@@ -466,18 +466,20 @@ const entities = {
   Feedback: createRepository('feedback'),
 };
 
-// Single Authorized Admin Definition
-const rawAdminEnv = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
-export const AUTHORIZED_ADMIN_EMAIL = (
-  rawAdminEnv && !rawAdminEnv.includes('your_admin_email')
-    ? rawAdminEnv
-    : 'ayushsharma8635@gmail.com'
-);
+// Single Authorized Admin Definition - configured strictly via VITE_ADMIN_EMAIL
+export function getConfiguredAdminEmail() {
+  const envVal = (import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
+  return envVal && !envVal.includes('your_admin_email') ? envVal : '';
+}
 
 export function isAuthorizedAdminEmail(email) {
   if (!email || typeof email !== 'string') return false;
-  return email.toLowerCase().trim() === AUTHORIZED_ADMIN_EMAIL;
+  const configuredAdmin = getConfiguredAdminEmail();
+  if (!configuredAdmin) return false;
+  return email.trim().toLowerCase() === configuredAdmin;
 }
+
+export const AUTHORIZED_ADMIN_EMAIL = getConfiguredAdminEmail();
 
 // Authentication Layer
 const auth = {

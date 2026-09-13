@@ -14,7 +14,6 @@ import StatCard from '@/components/StatCard';
 import StatusBadge from '@/components/StatusBadge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { showToast } from '@/lib/toast';
 import { isComplaintDelayed } from '@/lib/resolutionConfig';
 
 const PIE_COLORS = ['#5C7C66', '#A9C6B5', '#D89B92', '#d97706', '#799D85', '#c4a47c', '#8b9d83', '#e0a8a0', '#6b8e7f', '#b8a290'];

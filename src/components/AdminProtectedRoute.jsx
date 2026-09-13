@@ -19,11 +19,13 @@ export default function AdminProtectedRoute() {
     return <AdminLoadingFallback />;
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
+    console.log('[Civic Route Guard] Admin access denied: unauthenticated, redirecting to login');
     return <Navigate to="/login?role=admin" replace />;
   }
 
   if (user?.role !== 'admin') {
+    console.log('[Civic Route Guard] Admin access denied: user is not admin, role =', user?.role);
     return <Navigate to="/login?role=admin&error=unauthorized" replace />;
   }
 

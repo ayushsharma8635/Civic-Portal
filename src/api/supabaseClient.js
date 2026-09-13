@@ -441,7 +441,7 @@ const entities = {
 
 // Single Authorized Admin Definition
 export const AUTHORIZED_ADMIN_EMAIL = (
-  import.meta.env.VITE_ADMIN_EMAIL || 'YOUR_ADMIN_EMAIL@gmail.com'
+  import.meta.env.VITE_ADMIN_EMAIL || 'ayushsharmaedu8635@gmail.com'
 ).toLowerCase().trim();
 
 export function isAuthorizedAdminEmail(email) {
@@ -599,7 +599,7 @@ const auth = {
         redirectTo,
         queryParams: {
           access_type: 'offline',
-          prompt: 'consent',
+          prompt: 'select_account',
         },
       },
     });
@@ -630,9 +630,9 @@ const auth = {
   },
 
   /**
-   * @param {{ full_name?: string; avatar_url?: string; phone?: string }} [payload]
+   * @param {{ full_name?: string; avatar_url?: string; phone?: string; role?: string }} [payload]
    */
-  async updateMe({ full_name, avatar_url, phone } = {}) {
+  async updateMe({ full_name, avatar_url, phone, role } = {}) {
     if (!hasValidSupabaseConfig) {
       throw new Error('Supabase is not configured.');
     }
@@ -641,6 +641,7 @@ const auth = {
     if (full_name !== undefined) updates.full_name = full_name;
     if (avatar_url !== undefined) updates.avatar_url = avatar_url;
     if (phone !== undefined) updates.phone = phone;
+    if (role !== undefined) updates.role = role;
 
     const { data: { user }, error: authErr } = await supabase.auth.updateUser({
       data: updates,

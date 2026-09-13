@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, User, X, Key, ExternalLink, CheckCircle } from 'lucide-react';
+import { Shield, User, X, Key, ExternalLink } from 'lucide-react';
 import GoogleIcon from '@/components/GoogleIcon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,29 +49,34 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
     const payload = parseJwt(response.credential);
     if (!payload) return;
 
+    const currentRole = roleRef.current || defaultRole;
     const isAuthorizedAdmin = isAuthorizedAdminEmail(payload.email);
-    if (defaultRole === 'admin' && !isAuthorizedAdmin) {
+    if (currentRole === 'admin' && !isAuthorizedAdmin) {
       alert(`Access denied: Only the authorized administrator account (${AUTHORIZED_ADMIN_EMAIL}) can sign in as Admin.`);
       return;
     }
 
     const assignedRole = isAuthorizedAdmin ? 'admin' : 'citizen';
-    const verifiedUser = {
-      id: 'google-' + (payload.sub || Math.random().toString(36).substring(2, 9)),
-      email: payload.email,
-      full_name: payload.name || payload.email.split('@')[0],
-      avatar_url: payload.picture,
-      role: assignedRole,
-    };
     try {
       if (supabase?.auth?.signInWithIdToken) {
-        await supabase.auth.signInWithIdToken({
+        const { error } = await supabase.auth.signInWithIdToken({
           provider: 'google',
           token: response.credential,
         });
+        if (error) {
+          console.warn('Supabase signInWithIdToken sync failed, falling back to OAuth redirect:', error.message);
+          await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: window.location.origin + (assignedRole === 'admin' ? '/admin' : '/'),
+              queryParams: { prompt: 'select_account' },
+            },
+          });
+          return;
+        }
       }
     } catch (e) {
-      console.warn('Supabase signInWithIdToken sync:', e);
+      console.warn('Supabase signInWithIdToken error:', e);
     }
 
     if (onSignInRef.current) {
@@ -130,13 +135,23 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
 
   const handleOAuthSignIn = async () => {
     try {
-      const returnTo = defaultRole === 'admin' ? '/admin' : '/';
-      await supabase.auth.signInWithOAuth({
+      const currentRole = roleRef.current || defaultRole;
+      const returnTo = currentRole === 'admin' ? '/admin' : '/';
+      const redirectTo = window.location.origin + returnTo;
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + returnTo,
+          redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
         },
       });
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      }
     } catch (err) {
       alert('Google OAuth Error: ' + (err.message || 'Failed to initialize Google login'));
     }
@@ -186,37 +201,42 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
             <User className="w-4 h-4 text-primary shrink-0" />
             <div>
               <p className="font-semibold text-primary">Citizen Portal</p>
-              <p className="text-muted-foreground text-[11px]">Sign in to submit complaints and track resolution status.</p>
+              <p className="text-muted-foreground text-[11px]">Sign in with any Google account to submit complaints and track resolution status.</p>
             </div>
           </div>
         )}
 
-        {/* Official Google GSI Button Section */}
-        {activeClientId ? (
-          <div className="mb-5 p-4 rounded-xl border border-primary/20 bg-primary/5 text-center space-y-3">
-            <p className="text-xs font-medium text-foreground">
-              Google Sign-In ready:
-            </p>
-            <div className="flex justify-center" ref={googleBtnRef}></div>
-            <div className="flex items-center justify-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
-              <CheckCircle className="w-3.5 h-3.5" /> Client ID connected
+        {/* Google Sign-In Actions */}
+        <div className="space-y-3 mb-4">
+          {activeClientId && (
+            <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 text-center space-y-2">
+              <p className="text-xs font-medium text-foreground">
+                Google 1-Tap / Instant Sign-In:
+              </p>
+              <div className="flex justify-center" ref={googleBtnRef}></div>
             </div>
-          </div>
-        ) : (
-          <div className="mb-4 space-y-3">
-            <Button
-              type="button"
-              onClick={handleOAuthSignIn}
-              className="w-full h-11 font-medium"
-            >
-              <GoogleIcon className="w-4 h-4 mr-2" />
-              Continue with Google Account
-            </Button>
-            <p className="text-[11px] text-muted-foreground text-center">
-              Authenticates securely through Supabase Auth.
-            </p>
-          </div>
-        )}
+          )}
+
+          {activeClientId && (
+            <div className="relative my-2">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
+              <div className="relative flex justify-center text-[11px] uppercase"><span className="bg-card px-2 text-muted-foreground">or browser sign-in</span></div>
+            </div>
+          )}
+
+          <Button
+            type="button"
+            variant={activeClientId ? "outline" : "default"}
+            onClick={handleOAuthSignIn}
+            className="w-full h-11 font-medium"
+          >
+            <GoogleIcon className="w-4 h-4 mr-2" />
+            Continue with Google (OAuth)
+          </Button>
+          <p className="text-[11px] text-muted-foreground text-center">
+            Allows any valid Google account to authenticate securely.
+          </p>
+        </div>
 
         {/* Connect Google Client ID expander */}
         <div className="border-t border-border pt-3 mt-3 text-xs text-muted-foreground">

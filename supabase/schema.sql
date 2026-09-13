@@ -24,7 +24,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
-  RETURN LOWER(TRIM(COALESCE(auth.jwt() ->> 'email', ''))) = 'YOUR_ADMIN_EMAIL@gmail.com';
+  RETURN LOWER(TRIM(COALESCE(auth.jwt() ->> 'email', ''))) = 'ayushsharmaedu8635@gmail.com';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -33,7 +33,7 @@ CREATE OR REPLACE FUNCTION public.enforce_single_admin_role()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Revert any unauthorized attempt to set role='admin' back to 'citizen'
-  IF NEW.role = 'admin' AND LOWER(TRIM(COALESCE(NEW.email, ''))) NOT IN ('YOUR_ADMIN_EMAIL@gmail.com') THEN
+  IF NEW.role = 'admin' AND LOWER(TRIM(COALESCE(NEW.email, ''))) NOT IN ('ayushsharmaedu8635@gmail.com') THEN
     NEW.role := 'citizen';
   END IF;
   RETURN NEW;
@@ -63,6 +63,63 @@ CREATE POLICY "Users can update their own profile"
   ON public.profiles FOR UPDATE
   TO authenticated
   USING (auth.uid() = id);
+
+-- Database-level trigger to automatically provision profiles on new auth.users signup (Google OAuth or email)
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_role TEXT := 'citizen';
+  v_name TEXT := '';
+  v_avatar TEXT := '';
+BEGIN
+  -- Strict single-admin check: only the designated email can ever hold the 'admin' role
+  IF LOWER(TRIM(COALESCE(NEW.email, ''))) = 'ayushsharmaedu8635@gmail.com' THEN
+    v_role := 'admin';
+  ELSE
+    v_role := 'citizen';
+  END IF;
+
+  v_name := COALESCE(
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.raw_user_meta_data->>'name',
+    SPLIT_PART(COALESCE(NEW.email, 'user'), '@', 1)
+  );
+  v_avatar := COALESCE(
+    NEW.raw_user_meta_data->>'avatar_url',
+    NEW.raw_user_meta_data->>'picture',
+    ''
+  );
+
+  INSERT INTO public.profiles (id, email, full_name, role, avatar_url, created_at, updated_at)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    v_name,
+    v_role,
+    NULLIF(v_avatar, ''),
+    now(),
+    now()
+  )
+  ON CONFLICT (id) DO UPDATE
+  SET
+    email = EXCLUDED.email,
+    full_name = COALESCE(NULLIF(public.profiles.full_name, ''), EXCLUDED.full_name),
+    avatar_url = COALESCE(NULLIF(public.profiles.avatar_url, ''), EXCLUDED.avatar_url),
+    role = CASE
+      WHEN LOWER(TRIM(COALESCE(NEW.email, ''))) = 'ayushsharmaedu8635@gmail.com' THEN 'admin'
+      ELSE 'citizen'
+    END,
+    updated_at = now();
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
 
 -- 2. DEPARTMENTS TABLE (UUID Primary Key)
 CREATE TABLE IF NOT EXISTS public.departments (

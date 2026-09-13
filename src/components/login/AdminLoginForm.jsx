@@ -71,16 +71,13 @@ export default function AdminLoginForm({ onBack }) {
 
   const handleGoogle = async () => {
     setError('');
-    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem('scms_google_client_id');
-    if (googleClientId) {
-      setShowGoogleModal(true);
-    } else {
-      try {
-        await api.auth.loginWithProvider('google', '/admin/dashboard');
-      } catch (err) {
-        setError(err.message || 'Failed to initiate Google sign in');
-        setShowGoogleModal(true);
-      }
+    try {
+      console.log('[AUTH] Target route: /admin/dashboard');
+      console.log('[AUTH] Navigating to dashboard');
+      await api.auth.loginWithProvider('google', '/admin/dashboard');
+    } catch (err) {
+      console.error('[AUTH] Google sign in error:', err);
+      setError(err.message || 'Failed to initiate Google sign in');
     }
   };
 

@@ -134,46 +134,100 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let isMounted = true;
-    let fallbackTimer = null;
 
-    console.log('[AUTH] initialization started');
-    console.log('[AUTH] auth loading: true');
-    console.log('[AUTH] current route:', typeof window !== 'undefined' ? window.location.pathname : '');
+    console.log('[AUTH] App started');
+    console.log('[AUTH] Initializing Supabase session');
+    console.log('[AUTH] Auth loading: true');
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const code = searchParams.get('code');
 
     // Check for provider error parameters in URL
-    if (typeof window !== 'undefined') {
-      const searchParams = new URLSearchParams(window.location.search);
-      const hashStr = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : '';
-      const hashParams = new URLSearchParams(hashStr);
+    const oauthError =
+      searchParams.get('error_description') ||
+      searchParams.get('error') ||
+      new URLSearchParams(window.location.hash.substring(1)).get('error_description') ||
+      new URLSearchParams(window.location.hash.substring(1)).get('error');
 
-      const oauthError =
-        searchParams.get('error_description') ||
-        searchParams.get('error') ||
-        hashParams.get('error_description') ||
-        hashParams.get('error');
-
-      if (oauthError) {
-        const message = decodeURIComponent(oauthError.replace(/\+/g, ' '));
-        logAuth('AUTH EVENT: OAUTH_ERROR', { REDIRECT_REASON: message });
-        setAuthError({ type: 'oauth_error', message });
-        setIsLoadingAuth(false);
-        setAuthChecked(true);
-        console.log('[AUTH] auth loading: false');
-        cleanUrlOAuthParams();
-        return;
-      }
+    if (oauthError) {
+      const message = decodeURIComponent(oauthError.replace(/\+/g, ' '));
+      logAuth('AUTH EVENT: OAUTH_ERROR', { REDIRECT_REASON: message });
+      setAuthError({ type: 'oauth_error', message });
+      setIsLoadingAuth(false);
+      setAuthChecked(true);
+      console.log('[AUTH] Auth loading: false');
+      cleanUrlOAuthParams();
+      return;
     }
 
-    const hasCodeInUrl = typeof window !== 'undefined' && (
-      window.location.search.includes('code=') || window.location.hash.includes('access_token=')
-    );
+    // 1. Asynchronous session restoration
+    const restoreSession = async () => {
+      try {
+        let activeSession = null;
 
-    logAuth('AUTH INITIALIZING', {
-      AUTH_LOADING: true,
-      HAS_CODE_IN_URL: hasCodeInUrl,
-    });
+        // If an OAuth code is present in URL, ensure PKCE exchange is performed
+        if (code) {
+          try {
+            console.log('[AUTH] Exchanging authorization code from URL...');
+            const { data: exchangeData, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+            if (!exchangeErr && exchangeData?.session) {
+              activeSession = exchangeData.session;
+            } else if (exchangeErr) {
+              console.warn('[AUTH] Code exchange notice:', exchangeErr.message);
+            }
+          } catch (codeErr) {
+            console.warn('[AUTH] Code exchange exception:', codeErr);
+          }
+        }
 
-    // Register Supabase onAuthStateChange listener
+        // If code exchange didn't return a session, read from getSession()
+        if (!activeSession) {
+          const { data: { session: existingSession } } = await supabase.auth.getSession();
+          activeSession = existingSession;
+        }
+
+        if (!isMounted) return;
+
+        if (activeSession?.user) {
+          const resolvedUser = await resolveUserFromSession(activeSession);
+          if (!isMounted) return;
+          setSession(activeSession);
+          setUser(resolvedUser);
+          setIsAuthenticated(true);
+          setAuthError(null);
+          console.log('[AUTH] Session restored');
+          console.log('[AUTH] User email:', resolvedUser?.email);
+          console.log('[AUTH] Admin email:', getConfiguredAdminEmail());
+          console.log('[AUTH] Admin check:', resolvedUser?.role === 'admin');
+          console.log('[AUTH] Selected role:', resolvedUser?.role);
+          cleanUrlOAuthParams();
+        } else {
+          console.log('[AUTH] Session restored: none');
+          console.log('[AUTH] User email: null');
+          setSession(null);
+          setUser(null);
+          setIsAuthenticated(false);
+          setAuthError(null);
+        }
+      } catch (err) {
+        console.warn('[AUTH] Session restoration exception:', err);
+        if (isMounted) {
+          setSession(null);
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingAuth(false);
+          setAuthChecked(true);
+          console.log('[AUTH] Auth loading: false');
+        }
+      }
+    };
+
+    restoreSession();
+
+    // 2. Real-time auth state synchronization
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
       if (!isMounted) return;
 
@@ -184,77 +238,7 @@ export const AuthProvider = ({ children }) => {
       });
 
       switch (event) {
-        case 'INITIAL_SESSION': {
-          if (currentSession?.user) {
-            console.log('[AUTH] session restored: true');
-            const resolvedUser = await resolveUserFromSession(currentSession);
-            if (!isMounted) return;
-            setSession(currentSession);
-            setUser(resolvedUser);
-            setIsAuthenticated(true);
-            setAuthError(null);
-            setIsLoadingAuth(false);
-            setAuthChecked(true);
-            console.log('[AUTH] auth loading: false');
-            cleanUrlOAuthParams();
-            logAuth('SESSION RESTORED (INITIAL_SESSION)', {
-              USER_EMAIL: resolvedUser?.email,
-              ROLE: resolvedUser?.role,
-            });
-          } else if (hasCodeInUrl) {
-            // OAuth PKCE exchange in flight — keep loading = true and wait for SIGNED_IN
-            console.log('[AUTH] session restored: pending (PKCE exchange in flight)');
-            logAuth('INITIAL_SESSION PENDING', {
-              REDIRECT_REASON: 'Waiting for Supabase OAuth PKCE exchange',
-            });
-          } else {
-            // No stored session and no pending code in URL
-            console.log('[AUTH] session restored: false');
-            setSession(null);
-            setUser(null);
-            setIsAuthenticated(false);
-            setAuthError(null);
-            setIsLoadingAuth(false);
-            setAuthChecked(true);
-            console.log('[AUTH] auth loading: false');
-          }
-          break;
-        }
-
-        case 'SIGNED_IN': {
-          if (currentSession?.user) {
-            console.log('[AUTH] session restored: true');
-            const resolvedUser = await resolveUserFromSession(currentSession);
-            if (!isMounted) return;
-            setSession(currentSession);
-            setUser(resolvedUser);
-            setIsAuthenticated(true);
-            setAuthError(null);
-            setIsLoadingAuth(false);
-            setAuthChecked(true);
-            console.log('[AUTH] auth loading: false');
-            cleanUrlOAuthParams();
-            logAuth('SESSION ESTABLISHED (SIGNED_IN)', {
-              USER_EMAIL: resolvedUser?.email,
-              ROLE: resolvedUser?.role,
-            });
-          }
-          break;
-        }
-
-        case 'SIGNED_OUT': {
-          console.log('[AUTH] session restored: false');
-          setSession(null);
-          setUser(null);
-          setIsAuthenticated(false);
-          setAuthError(null);
-          setIsLoadingAuth(false);
-          setAuthChecked(true);
-          console.log('[AUTH] auth loading: false');
-          logAuth('SIGNED_OUT');
-          break;
-        }
-
+        case 'SIGNED_IN':
         case 'TOKEN_REFRESHED':
         case 'USER_UPDATED': {
           if (currentSession?.user) {
@@ -266,6 +250,38 @@ export const AuthProvider = ({ children }) => {
             setAuthError(null);
             setIsLoadingAuth(false);
             setAuthChecked(true);
+            console.log('[AUTH] Session restored');
+            console.log('[AUTH] User email:', resolvedUser?.email);
+            console.log('[AUTH] Selected role:', resolvedUser?.role);
+            console.log('[AUTH] Auth loading: false');
+            cleanUrlOAuthParams();
+          }
+          break;
+        }
+
+        case 'SIGNED_OUT': {
+          setSession(null);
+          setUser(null);
+          setIsAuthenticated(false);
+          setAuthError(null);
+          setIsLoadingAuth(false);
+          setAuthChecked(true);
+          console.log('[AUTH] Session restored: signed out');
+          console.log('[AUTH] Auth loading: false');
+          break;
+        }
+
+        case 'INITIAL_SESSION': {
+          if (currentSession?.user) {
+            const resolvedUser = await resolveUserFromSession(currentSession);
+            if (!isMounted) return;
+            setSession(currentSession);
+            setUser(resolvedUser);
+            setIsAuthenticated(true);
+            setAuthError(null);
+            setIsLoadingAuth(false);
+            setAuthChecked(true);
+            cleanUrlOAuthParams();
           }
           break;
         }
@@ -275,42 +291,8 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
-    // Safety fallback: if URL has an OAuth code but no event fires within 8s, query session directly
-    if (hasCodeInUrl) {
-      fallbackTimer = setTimeout(async () => {
-        if (!isMounted) return;
-        logAuth('AUTH TIMEOUT FALLBACK CHECK', {
-          REDIRECT_REASON: 'Safety timer elapsed, checking session directly',
-        });
-        try {
-          const { data: { session: fallbackSession } } = await supabase.auth.getSession();
-          if (fallbackSession?.user) {
-            const resolvedUser = await resolveUserFromSession(fallbackSession);
-            if (!isMounted) return;
-            setSession(fallbackSession);
-            setUser(resolvedUser);
-            setIsAuthenticated(true);
-          } else {
-            setUser(null);
-            setIsAuthenticated(false);
-          }
-        } catch (e) {
-          console.warn('[Civic Auth] Fallback session check error:', e);
-          setUser(null);
-          setIsAuthenticated(false);
-        } finally {
-          if (isMounted) {
-            setIsLoadingAuth(false);
-            setAuthChecked(true);
-            cleanUrlOAuthParams();
-          }
-        }
-      }, 8000);
-    }
-
     return () => {
       isMounted = false;
-      if (fallbackTimer) clearTimeout(fallbackTimer);
       subscription?.unsubscribe();
     };
   }, [cleanUrlOAuthParams, logAuth, resolveUserFromSession]);

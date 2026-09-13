@@ -31,6 +31,8 @@ import ResetPassword from '@/pages/ResetPassword';
 const CitizenDashboardRoute = () => {
   const { user } = useAuth();
   if (user?.role === 'admin') {
+    console.log('[AUTH] Target route: /admin/dashboard');
+    console.log('[AUTH] Navigating to dashboard');
     return <Navigate to="/admin/dashboard" replace />;
   }
   return <Home />;

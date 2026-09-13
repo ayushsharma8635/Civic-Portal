@@ -16,31 +16,33 @@ const AdminLoadingFallback = () => (
 export default function AdminProtectedRoute() {
   const { user, isAuthenticated, isLoadingAuth, authChecked } = useAuth();
 
-  console.log('[AUTH] auth loading:', isLoadingAuth || !authChecked);
-  console.log('[AUTH] current route:', typeof window !== 'undefined' ? window.location.pathname : '');
+  console.log('[AUTH] Auth loading:', isLoadingAuth || !authChecked);
 
   if (isLoadingAuth || !authChecked) {
     return <AdminLoadingFallback />;
   }
 
   if (!isAuthenticated || !user) {
-    console.log('[AUTH] user email:', null);
-    console.log('[AUTH] admin email:', getConfiguredAdminEmail());
-    console.log('[AUTH] admin check:', false);
-    console.log('[AUTH] selected role:', null);
-    console.log('[AUTH] navigating to: /login?role=admin');
+    console.log('[AUTH] User email:', null);
+    console.log('[AUTH] Admin email:', getConfiguredAdminEmail());
+    console.log('[AUTH] Admin check:', false);
+    console.log('[AUTH] Selected role:', null);
+    console.log('[AUTH] Target route: /login?role=admin');
     return <Navigate to="/login?role=admin" replace />;
   }
 
-  console.log('[AUTH] user email:', user.email);
-  console.log('[AUTH] admin email:', getConfiguredAdminEmail());
-  console.log('[AUTH] admin check:', user.role === 'admin');
-  console.log('[AUTH] selected role:', user.role);
+  console.log('[AUTH] User email:', user.email);
+  console.log('[AUTH] Admin email:', getConfiguredAdminEmail());
+  console.log('[AUTH] Admin check:', user.role === 'admin');
+  console.log('[AUTH] Selected role:', user.role);
 
   if (user?.role !== 'admin') {
-    console.log('[AUTH] navigating to: /login?role=admin&error=unauthorized');
+    console.log('[AUTH] Target route: /login?role=admin&error=unauthorized');
     return <Navigate to="/login?role=admin&error=unauthorized" replace />;
   }
+
+  console.log('[AUTH] Target route: /admin/dashboard');
+  console.log('[AUTH] Navigating to dashboard');
 
   return <Outlet />;
 }

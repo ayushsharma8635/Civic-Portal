@@ -28,10 +28,10 @@ export default function Login() {
     if (oauthError) return;
 
     if (isAuthenticated && user) {
-      console.log('[AUTH] user email:', user.email);
-      console.log('[AUTH] admin email:', getConfiguredAdminEmail());
-      console.log('[AUTH] admin check:', user.role === 'admin');
-      console.log('[AUTH] selected role:', user.role);
+      console.log('[AUTH] User email:', user.email);
+      console.log('[AUTH] Admin email:', getConfiguredAdminEmail());
+      console.log('[AUTH] Admin check:', user.role === 'admin');
+      console.log('[AUTH] Selected role:', user.role);
 
       const returnTo = safeReturnTo();
       let target;
@@ -49,8 +49,8 @@ export default function Login() {
         }
       }
 
-      console.log('[AUTH] navigating to:', target);
-      console.log('[AUTH] current route:', window.location.pathname);
+      console.log('[AUTH] Target route:', target);
+      console.log('[AUTH] Navigating to dashboard');
       window.location.href = target;
     }
   }, [isAuthenticated, user, oauthError]);

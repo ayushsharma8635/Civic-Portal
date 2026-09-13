@@ -65,13 +65,16 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
         if (error) {
           console.warn('Supabase signInWithIdToken sync failed, checking OAuth redirect:', error.message);
           if (hasValidSupabaseConfig) {
-            await supabase.auth.signInWithOAuth({
+            const { data: oauthData } = await supabase.auth.signInWithOAuth({
               provider: 'google',
               options: {
                 redirectTo: getAuthRedirectUrl(assignedRole === 'admin' ? '/admin/dashboard' : '/citizen/dashboard'),
                 queryParams: { prompt: 'select_account' },
               },
             });
+            if (oauthData?.url) {
+              window.location.href = oauthData.url;
+            }
             return;
           }
         }

@@ -440,9 +440,12 @@ const entities = {
 };
 
 // Single Authorized Admin Definition
+const rawAdminEnv = (import.meta.env.VITE_ADMIN_EMAIL || '').toLowerCase().trim();
 export const AUTHORIZED_ADMIN_EMAIL = (
-  import.meta.env.VITE_ADMIN_EMAIL || 'ayushsharmaedu8635@gmail.com'
-).toLowerCase().trim();
+  rawAdminEnv && !rawAdminEnv.includes('your_admin_email')
+    ? rawAdminEnv
+    : 'ayushsharmaedu8635@gmail.com'
+);
 
 export function isAuthorizedAdminEmail(email) {
   if (!email || typeof email !== 'string') return false;

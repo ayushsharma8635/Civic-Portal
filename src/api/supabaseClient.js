@@ -1,17 +1,29 @@
 /// <reference path="../vite-env.d.ts" />
 import { createClient } from '@supabase/supabase-js';
 
-const rawEnvUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const rawEnvUrl = (
+  import.meta.env.VITE_SUPABASE_URL ||
+  import.meta.env.SUPABASE_URL ||
+  ''
+).trim();
+
 // Clean any accidental '/rest/v1' suffix or trailing slashes
 const envUrl = rawEnvUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+const envKey = (
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.SUPABASE_ANON_KEY ||
+  ''
+).trim();
 
 // Detect whether valid Supabase credentials have been configured
 const hasValidSupabaseConfig = Boolean(
   envUrl &&
   envKey &&
   envUrl.startsWith('http') &&
-  !envUrl.includes('your-project')
+  !envUrl.includes('your-project') &&
+  !envUrl.includes('placeholder')
 );
 
 // Fallback dummy client for build-time safety and graceful offline demo
@@ -30,6 +42,20 @@ export const supabase = createClient(
     },
   }
 );
+
+export const PRODUCTION_SITE_URL = 'https://civic-portal-eight.vercel.app';
+
+/**
+ * Returns an absolute redirect URL on the Civic Portal application domain,
+ * ensuring users are returned to Civic Portal and never to the Supabase domain.
+ */
+export function getAuthRedirectUrl(path = '/') {
+  const origin = (typeof window !== 'undefined' && window.location?.origin)
+    ? window.location.origin
+    : PRODUCTION_SITE_URL;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${origin}${cleanPath}`;
+}
 
 // Helper for localStorage-backed fallback mock data when Supabase is not yet connected
 const LOCAL_STORAGE_PREFIX = 'scms_demo_';
@@ -589,13 +615,14 @@ const auth = {
   },
 
   async loginWithProvider(provider, returnTo = '/') {
-    const isAdminFlow = returnTo?.includes('admin') || window.location.search.includes('role=admin');
+    const isAdminFlow = returnTo?.includes('admin') || (typeof window !== 'undefined' && window.location.search.includes('role=admin'));
 
     if (!hasValidSupabaseConfig) {
       throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
     }
 
-    const redirectTo = window.location.origin + (returnTo || (isAdminFlow ? '/admin' : '/'));
+    const targetPath = returnTo || (isAdminFlow ? '/admin' : '/');
+    const redirectTo = getAuthRedirectUrl(targetPath);
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
@@ -617,7 +644,7 @@ const auth = {
       throw new Error('Supabase is not configured.');
     }
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/reset-password',
+      redirectTo: getAuthRedirectUrl('/reset-password'),
     });
     if (error) throw error;
     return data;

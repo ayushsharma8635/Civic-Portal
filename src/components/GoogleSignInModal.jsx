@@ -4,7 +4,7 @@ import GoogleIcon from '@/components/GoogleIcon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase, isAuthorizedAdminEmail, AUTHORIZED_ADMIN_EMAIL } from '@/api/supabaseClient';
+import { supabase, isAuthorizedAdminEmail, AUTHORIZED_ADMIN_EMAIL, getAuthRedirectUrl } from '@/api/supabaseClient';
 
 // Helper to decode Google JWT token
 function parseJwt(token) {
@@ -68,7 +68,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
           await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
-              redirectTo: window.location.origin + (assignedRole === 'admin' ? '/admin' : '/'),
+              redirectTo: getAuthRedirectUrl(assignedRole === 'admin' ? '/admin' : '/'),
               queryParams: { prompt: 'select_account' },
             },
           });
@@ -137,7 +137,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
     try {
       const currentRole = roleRef.current || defaultRole;
       const returnTo = currentRole === 'admin' ? '/admin' : '/';
-      const redirectTo = window.location.origin + returnTo;
+      const redirectTo = getAuthRedirectUrl(returnTo);
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {

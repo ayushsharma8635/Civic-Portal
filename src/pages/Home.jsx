@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/lib/AuthContext';
 import {
   LayoutDashboard, Clock, CheckCircle2, AlertCircle, FilePlus, TrendingUp, AlertTriangle
 } from 'lucide-react';
@@ -19,7 +20,8 @@ import { isComplaintDelayed } from '@/lib/resolutionConfig';
 const PIE_COLORS = ['#5C7C66', '#A9C6B5', '#D89B92', '#d97706', '#799D85', '#c4a47c', '#8b9d83', '#e0a8a0', '#6b8e7f', '#b8a290'];
 
 export default function Home() {
-  const [user, setUser] = useState(null);
+  const { user: authUser } = useAuth();
+  const [user, setUser] = useState(authUser);
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,20 +36,17 @@ export default function Home() {
 
   useEffect(() => {
     let unsub = () => {};
-    (async () => {
-      try {
-        const u = await api.auth.me();
-        setUser(u);
-        await loadComplaints(u.id);
-        unsub = api.entities.Complaint.subscribe(() => loadComplaints(u.id));
-      } catch (e) {
-        showToast('Could not load complaints: ' + e.message, 'error');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    if (!authUser?.id) {
+      setLoading(false);
+      return;
+    }
+    setUser(authUser);
+    loadComplaints(authUser.id).finally(() => {
+      setLoading(false);
+    });
+    unsub = api.entities.Complaint.subscribe(() => loadComplaints(authUser.id));
     return () => unsub();
-  }, []);
+  }, [authUser]);
 
   const stats = useMemo(() => {
     const total = complaints.length;

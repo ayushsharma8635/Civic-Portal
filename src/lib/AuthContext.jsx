@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import { api, supabase } from '@/api/supabaseClient';
 
 /**
@@ -27,68 +27,86 @@ export const AuthProvider = ({ children }) => {
   const [authChecked, setAuthChecked] = useState(false);
   const [appPublicSettings, setAppPublicSettings] = useState({ id: 'smart-complaint' });
 
+  // Prevent duplicate concurrent auth checks during OAuth / session restoration
+  const inFlightPromiseRef = useRef(null);
+
   const checkUserAuth = useCallback(async () => {
-    try {
-      setIsLoadingAuth(true);
+    if (inFlightPromiseRef.current) {
+      return inFlightPromiseRef.current;
+    }
 
-      if (typeof window !== 'undefined') {
-        const searchParams = new URLSearchParams(window.location.search);
-        const hashStr = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : '';
-        const hashParams = new URLSearchParams(hashStr);
+    const runAuthCheck = async () => {
+      try {
+        setIsLoadingAuth(true);
 
-        // Check if OAuth provider returned an error
-        const oauthError =
-          searchParams.get('error_description') ||
-          searchParams.get('error') ||
-          hashParams.get('error_description') ||
-          hashParams.get('error');
+        if (typeof window !== 'undefined') {
+          const searchParams = new URLSearchParams(window.location.search);
+          const hashStr = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : '';
+          const hashParams = new URLSearchParams(hashStr);
 
-        if (oauthError) {
-          const message = decodeURIComponent(oauthError.replace(/\+/g, ' '));
-          console.warn('OAuth callback error:', message);
-          setAuthError({ type: 'oauth_error', message });
-          setIsLoadingAuth(false);
-          setAuthChecked(true);
-          return;
-        }
+          // Check if OAuth provider returned an error
+          const oauthError =
+            searchParams.get('error_description') ||
+            searchParams.get('error') ||
+            hashParams.get('error_description') ||
+            hashParams.get('error');
 
-        // Exchange PKCE auth code if present in URL
-        const code = searchParams.get('code');
-        if (code) {
-          try {
-            const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-            if (exchangeErr) {
-              console.warn('exchangeCodeForSession warning:', exchangeErr.message);
-            }
-            // Strip code from URL to keep history clean and avoid replay
-            searchParams.delete('code');
-            const newSearch = searchParams.toString() ? `?${searchParams.toString()}` : '';
-            window.history.replaceState(window.history.state, '', window.location.pathname + newSearch + window.location.hash);
-          } catch (codeErr) {
-            console.warn('Error during exchangeCodeForSession:', codeErr);
+          if (oauthError) {
+            const message = decodeURIComponent(oauthError.replace(/\+/g, ' '));
+            console.warn('OAuth callback error:', message);
+            setAuthError({ type: 'oauth_error', message });
+            setIsLoadingAuth(false);
+            setAuthChecked(true);
+            return;
           }
-        } else if (window.location.hash.includes('access_token')) {
-          await supabase.auth.getSession().catch(() => {});
-        }
-      }
 
-      const currentUser = await api.auth.me();
-      if (currentUser) {
-        setUser(currentUser);
-        setIsAuthenticated(true);
-      } else {
+          // Exchange PKCE auth code if present in URL
+          const code = searchParams.get('code');
+          if (code) {
+            try {
+              const { data: sessionRes } = await supabase.auth.getSession();
+              if (!sessionRes?.session) {
+                const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+                if (exchangeErr) {
+                  console.warn('exchangeCodeForSession warning:', exchangeErr.message);
+                }
+              }
+            } catch (codeErr) {
+              console.warn('Error during exchangeCodeForSession:', codeErr);
+            } finally {
+              // Clean code and state params from URL to prevent replay
+              searchParams.delete('code');
+              searchParams.delete('state');
+              const newSearch = searchParams.toString() ? `?${searchParams.toString()}` : '';
+              window.history.replaceState(window.history.state, '', window.location.pathname + newSearch + window.location.hash);
+            }
+          } else if (window.location.hash.includes('access_token')) {
+            await supabase.auth.getSession().catch(() => {});
+          }
+        }
+
+        const currentUser = await api.auth.me();
+        if (currentUser) {
+          setUser(currentUser);
+          setIsAuthenticated(true);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+        setAuthError(null);
+      } catch {
         setUser(null);
         setIsAuthenticated(false);
+      } finally {
+        setIsLoadingAuth(false);
+        setAuthChecked(true);
+        setIsLoadingPublicSettings(false);
+        inFlightPromiseRef.current = null;
       }
-      setAuthError(null);
-    } catch {
-      setUser(null);
-      setIsAuthenticated(false);
-    } finally {
-      setIsLoadingAuth(false);
-      setAuthChecked(true);
-      setIsLoadingPublicSettings(false);
-    }
+    };
+
+    inFlightPromiseRef.current = runAuthCheck();
+    return inFlightPromiseRef.current;
   }, []);
 
   useEffect(() => {

@@ -549,6 +549,19 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.officer_activity_logs;
   EXCEPTION WHEN duplicate_object THEN
     NULL;
-  END;
 END $$;
+
+-- ==============================================================================
+-- POSTGREST ROLES & SCHEMA PERMISSIONS (Fixes 'permission denied for table ...')
+-- ==============================================================================
+-- Ensure the PostgREST API roles have schema usage and table privileges
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- Automatically grant privileges on all future tables created in public schema
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
 

@@ -32,7 +32,7 @@ export default function AdminOfficers() {
       const [ol, al, dl] = await Promise.all([
         api.entities.Officer.list('-name', 500),
         api.entities.Area.filter({ active: true }),
-        api.entities.Department.list(),
+        api.entities.Department.list('name'),
       ]);
       setOfficers(ol.items || ol || []);
       setAreas(al.items || al || []);

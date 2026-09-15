@@ -25,7 +25,7 @@ export default function AdminDashboard() {
     try {
       const [cl, dl] = await Promise.all([
         api.entities.Complaint.list('-created_date', 500),
-        api.entities.Department.list()
+        api.entities.Department.list('name')
       ]);
       setComplaints(cl.items || cl || []);
       setDepartments(dl.items || dl || []);

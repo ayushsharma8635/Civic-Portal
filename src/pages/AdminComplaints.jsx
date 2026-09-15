@@ -44,8 +44,8 @@ export default function AdminComplaints() {
     try {
       const [cl, dl, al, ol] = await Promise.all([
         api.entities.Complaint.list('-created_date', 500),
-        api.entities.Department.list(),
-        api.entities.Area.list(),
+        api.entities.Department.list('name'),
+        api.entities.Area.list('name'),
         api.entities.Officer.filter({ status: 'Active' })
       ]);
       setComplaints(cl.items || cl || []);

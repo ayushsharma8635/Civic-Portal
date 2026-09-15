@@ -191,11 +191,14 @@ const INITIAL_OFFICERS = [
 ];
 
 // Entity Repository Factory
-function createRepository(tableName, localDefault = []) {
+function createRepository(tableName, localDefault = [], defaultSort = null) {
   const isStrictSupabase = tableName === 'complaints' || tableName === 'complaint_media';
+  const fallbackSort = defaultSort !== null && defaultSort !== undefined
+    ? defaultSort
+    : (tableName === 'departments' || tableName === 'areas' || tableName === 'officers' ? 'name' : '-created_date');
 
   return {
-    async list(sort = '-created_date', limit = 500) {
+    async list(sort = fallbackSort, limit = 500) {
       if (!hasValidSupabaseConfig) {
         if (isStrictSupabase) {
           throw new Error(
@@ -207,8 +210,8 @@ function createRepository(tableName, localDefault = []) {
           const isDesc = sort.startsWith('-');
           const field = sort.replace(/^[+-]/, '');
           items.sort((a, b) => {
-            const valA = a[field] ?? '';
-            const valB = b[field] ?? '';
+            const valA = a[field] ?? a['created_at'] ?? a['name'] ?? '';
+            const valB = b[field] ?? b['created_at'] ?? b['name'] ?? '';
             return isDesc ? (valB > valA ? 1 : -1) : (valA > valB ? 1 : -1);
           });
         }
@@ -223,12 +226,33 @@ function createRepository(tableName, localDefault = []) {
       }
       if (limit) query = query.limit(limit);
 
-      const { data, error } = await query;
-      if (error) throw error;
+      let { data, error } = await query;
+      if (error) {
+        // If sorting failed because the column does not exist (Postgres 42703), retry without that order clause
+        if (error.code === '42703' || (error.message && error.message.toLowerCase().includes('does not exist'))) {
+          console.warn(`[supabase] Column "${sort}" does not exist on table "${tableName}". Retrying without order clause.`);
+          const fallbackQuery = supabase.from(tableName).select('*').limit(limit || 500);
+          const fallbackRes = await fallbackQuery;
+          if (!fallbackRes.error && fallbackRes.data) {
+            const isDesc = sort?.startsWith('-');
+            const field = sort?.replace(/^[+-]/, '');
+            const sortedData = [...fallbackRes.data];
+            if (field) {
+              sortedData.sort((a, b) => {
+                const valA = a[field] ?? a['name'] ?? a['created_at'] ?? '';
+                const valB = b[field] ?? b['name'] ?? b['created_at'] ?? '';
+                return isDesc ? (valB > valA ? 1 : -1) : (valA > valB ? 1 : -1);
+              });
+            }
+            return sortedData;
+          }
+        }
+        throw error;
+      }
       return data || [];
     },
 
-    async filter(filterObj = {}, sort = '-created_date', limit = 200) {
+    async filter(filterObj = {}, sort = fallbackSort, limit = 200) {
       if (!hasValidSupabaseConfig) {
         if (isStrictSupabase) {
           throw new Error(
@@ -248,8 +272,8 @@ function createRepository(tableName, localDefault = []) {
           const isDesc = sort.startsWith('-');
           const field = sort.replace(/^[+-]/, '');
           items.sort((a, b) => {
-            const valA = a[field] ?? '';
-            const valB = b[field] ?? '';
+            const valA = a[field] ?? a['created_at'] ?? a['name'] ?? '';
+            const valB = b[field] ?? b['created_at'] ?? b['name'] ?? '';
             return isDesc ? (valB > valA ? 1 : -1) : (valA > valB ? 1 : -1);
           });
         }
@@ -276,8 +300,31 @@ function createRepository(tableName, localDefault = []) {
       }
       if (limit) query = query.limit(limit);
 
-      const { data, error } = await query;
-      if (error) throw error;
+      let { data, error } = await query;
+      if (error) {
+        if (error.code === '42703' || (error.message && error.message.toLowerCase().includes('does not exist'))) {
+          console.warn(`[supabase] Column "${sort}" does not exist on table "${tableName}". Retrying filter without order clause.`);
+          let fallbackQuery = supabase.from(tableName).select('*');
+          Object.entries(filterObj).forEach(([k, v]) => {
+            if (UUID_FIELDS.has(k)) {
+              if (v === '' || v === undefined) {
+                fallbackQuery = fallbackQuery.is(k, null);
+              } else {
+                const norm = normalizeUUID(v);
+                fallbackQuery = fallbackQuery.eq(k, norm || v);
+              }
+            } else {
+              fallbackQuery = fallbackQuery.eq(k, v);
+            }
+          });
+          if (limit) fallbackQuery = fallbackQuery.limit(limit);
+          const fallbackRes = await fallbackQuery;
+          if (!fallbackRes.error && fallbackRes.data) {
+            return fallbackRes.data;
+          }
+        }
+        throw error;
+      }
       return data || [];
     },
 
@@ -455,15 +502,15 @@ function createRepository(tableName, localDefault = []) {
 
 // Map entity names to PostgreSQL tables
 const entities = {
-  Complaint: createRepository('complaints'),
-  ComplaintMedia: createRepository('complaint_media'),
-  Department: createRepository('departments', INITIAL_DEPARTMENTS),
-  Area: createRepository('areas', INITIAL_AREAS),
-  Officer: createRepository('officers', INITIAL_OFFICERS),
-  Notification: createRepository('notifications'),
-  ActivityLog: createRepository('activity_logs'),
-  OfficerActivityLog: createRepository('officer_activity_logs'),
-  Feedback: createRepository('feedback'),
+  Complaint: createRepository('complaints', [], '-created_date'),
+  ComplaintMedia: createRepository('complaint_media', [], '-created_date'),
+  Department: createRepository('departments', INITIAL_DEPARTMENTS, 'name'),
+  Area: createRepository('areas', INITIAL_AREAS, 'name'),
+  Officer: createRepository('officers', INITIAL_OFFICERS, 'name'),
+  Notification: createRepository('notifications', [], '-created_date'),
+  ActivityLog: createRepository('activity_logs', [], '-created_date'),
+  OfficerActivityLog: createRepository('officer_activity_logs', [], '-created_date'),
+  Feedback: createRepository('feedback', [], '-created_date'),
 };
 
 // Single Authorized Admin Definition - configured strictly via VITE_ADMIN_EMAIL

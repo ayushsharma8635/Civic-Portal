@@ -452,6 +452,40 @@ BEGIN
       NULL;
     END;
   END IF;
+
+  -- Safe column synchronization: ensure created_date column exists on existing tables
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'departments' AND column_name = 'created_date'
+  ) THEN
+    BEGIN
+      ALTER TABLE public.departments ADD COLUMN created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now());
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'areas' AND column_name = 'created_date'
+  ) THEN
+    BEGIN
+      ALTER TABLE public.areas ADD COLUMN created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now());
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'officers' AND column_name = 'created_date'
+  ) THEN
+    BEGIN
+      ALTER TABLE public.officers ADD COLUMN created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now());
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END IF;
 EXCEPTION
   WHEN OTHERS THEN
     NULL;

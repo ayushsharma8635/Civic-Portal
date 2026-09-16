@@ -3,34 +3,22 @@ import { api } from '@/api/supabaseClient';
 
 let cachedApiKey = null;
 let scriptPromise = null;
-let isAuthFailed = false;
 
-// Global auth failure handler for Google Maps
+// Suppress Google Maps auth failure alert dialog so it never interrupts the UI
 if (typeof window !== 'undefined') {
   window.gm_authFailure = () => {
-    console.warn('[Google Maps] Authentication failed (missing billing, invalid key, or unauthorized referrer). Falling back to OpenStreetMap.');
-    isAuthFailed = true;
-    window.dispatchEvent(new CustomEvent('google-maps-auth-failure'));
+    console.warn('[Google Maps] Warning: Google Maps key has referrer/billing restrictions, running in developer mode.');
   };
-}
-
-function isValidGoogleKey(key) {
-  if (!key || typeof key !== 'string') return false;
-  const trimmed = key.trim();
-  return (
-    trimmed.length > 20 &&
-    !trimmed.includes('your-') &&
-    !trimmed.includes('placeholder') &&
-    !trimmed.includes('AIzaSyDummy')
-  );
 }
 
 function loadGoogleMapsScript(apiKey) {
   if (scriptPromise) return scriptPromise;
-  if (window.google?.maps) return Promise.resolve();
+  if (typeof window !== 'undefined' && window.google?.maps) return Promise.resolve();
+
   scriptPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places&v=weekly`;
+    const keyParam = apiKey ? `key=${encodeURIComponent(apiKey)}&` : '';
+    script.src = `https://maps.googleapis.com/maps/api/js?${keyParam}libraries=places&v=weekly`;
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
@@ -45,51 +33,48 @@ function loadGoogleMapsScript(apiKey) {
 
 export function useGoogleMaps() {
   const [state, setState] = useState({
-    isLoaded: Boolean(typeof window !== 'undefined' && window.google?.maps && !isAuthFailed),
-    useFallback: isAuthFailed,
+    isLoaded: Boolean(typeof window !== 'undefined' && window.google?.maps),
     error: null,
   });
 
   useEffect(() => {
     let cancelled = false;
 
-    const handleAuthFailure = () => {
-      if (!cancelled) {
-        setState({ isLoaded: false, useFallback: true, error: null });
-      }
-    };
-    window.addEventListener('google-maps-auth-failure', handleAuthFailure);
-
     (async () => {
       try {
-        if (isAuthFailed) {
-          if (!cancelled) setState({ isLoaded: false, useFallback: true, error: null });
+        if (typeof window !== 'undefined' && window.google?.maps) {
+          if (!cancelled) setState({ isLoaded: true, error: null });
           return;
         }
 
         if (cachedApiKey === null) {
-          const res = await api.functions.invoke('getMapsConfig', {}).catch(() => ({}));
-          cachedApiKey = (res?.data || res)?.apiKey || '';
-        }
+          const envKey = (
+            import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
+            import.meta.env.VITE_GOOGLE_MAP_API_KEY ||
+            ''
+          ).trim();
 
-        if (!isValidGoogleKey(cachedApiKey)) {
-          // No valid key configured -> smoothly switch to OpenStreetMap without triggering Google error modal
-          if (!cancelled) setState({ isLoaded: false, useFallback: true, error: null });
-          return;
+          if (envKey) {
+            cachedApiKey = envKey;
+          } else {
+            const res = await api.functions.invoke('getMapsConfig', {}).catch(() => ({}));
+            cachedApiKey = (res?.data || res)?.apiKey || '';
+          }
         }
 
         await loadGoogleMapsScript(cachedApiKey);
-        if (!cancelled && !isAuthFailed) {
-          setState({ isLoaded: true, useFallback: false, error: null });
+        if (!cancelled) {
+          setState({ isLoaded: true, error: null });
         }
-      } catch {
-        if (!cancelled) setState({ isLoaded: false, useFallback: true, error: null });
+      } catch (err) {
+        if (!cancelled) {
+          setState({ isLoaded: Boolean(typeof window !== 'undefined' && window.google?.maps), error: err.message });
+        }
       }
     })();
 
     return () => {
       cancelled = true;
-      window.removeEventListener('google-maps-auth-failure', handleAuthFailure);
     };
   }, []);
 

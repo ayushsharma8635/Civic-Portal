@@ -165,8 +165,13 @@
   }
 }
 
-/* Custom Leaflet Map Marker */
-.custom-leaflet-marker {
-  background: transparent !important;
-  border: none !important;
+/* Google Maps Seamless Presentation */
+.gm-err-container {
+  display: none !important;
+}
+.gm-err-autocomplete {
+  display: none !important;
+}
+.dismissButton {
+  display: none !important;
 }

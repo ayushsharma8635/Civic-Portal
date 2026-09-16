@@ -1010,7 +1010,15 @@ const functions = {
     // 6. Google Maps Configuration
     if (functionName === 'getMapsConfig') {
       return {
-        apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
+        apiKey:
+          (typeof __GOOGLE_MAPS_API_KEY__ !== 'undefined' ? __GOOGLE_MAPS_API_KEY__ : '') ||
+          import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
+          import.meta.env.GOOGLE_MAPS_API_KEY ||
+          import.meta.env.VITE_GOOGLE_MAP_API_KEY ||
+          import.meta.env.GOOGLE_MAP_API_KEY ||
+          import.meta.env.VITE_MAPS_API_KEY ||
+          import.meta.env.MAPS_API_KEY ||
+          '',
       };
     }
 

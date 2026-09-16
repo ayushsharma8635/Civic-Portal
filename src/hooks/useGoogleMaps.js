@@ -11,11 +11,33 @@ if (typeof window !== 'undefined') {
   };
 }
 
+export function getGoogleMapsApiKey() {
+  const key = (
+    (typeof __GOOGLE_MAPS_API_KEY__ !== 'undefined' ? __GOOGLE_MAPS_API_KEY__ : '') ||
+    import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
+    import.meta.env.GOOGLE_MAPS_API_KEY ||
+    import.meta.env.VITE_GOOGLE_MAP_API_KEY ||
+    import.meta.env.GOOGLE_MAP_API_KEY ||
+    import.meta.env.VITE_MAPS_API_KEY ||
+    import.meta.env.MAPS_API_KEY ||
+    ''
+  ).trim();
+  return key;
+}
+
 function loadGoogleMapsScript(apiKey) {
   if (scriptPromise) return scriptPromise;
   if (typeof window !== 'undefined' && window.google?.maps) return Promise.resolve();
 
   scriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[src*="maps.googleapis.com"]');
+    if (existing) {
+      if (window.google?.maps) return resolve();
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', (e) => reject(e));
+      return;
+    }
+
     const script = document.createElement('script');
     const keyParam = apiKey ? `key=${encodeURIComponent(apiKey)}&` : '';
     script.src = `https://maps.googleapis.com/maps/api/js?${keyParam}libraries=places&v=weekly`;
@@ -48,17 +70,12 @@ export function useGoogleMaps() {
         }
 
         if (cachedApiKey === null) {
-          const envKey = (
-            import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
-            import.meta.env.VITE_GOOGLE_MAP_API_KEY ||
-            ''
-          ).trim();
-
+          const envKey = getGoogleMapsApiKey();
           if (envKey) {
             cachedApiKey = envKey;
           } else {
             const res = await api.functions.invoke('getMapsConfig', {}).catch(() => ({}));
-            cachedApiKey = (res?.data || res)?.apiKey || '';
+            cachedApiKey = (res?.data || res)?.apiKey || getGoogleMapsApiKey() || '';
           }
         }
 
@@ -68,7 +85,7 @@ export function useGoogleMaps() {
         }
       } catch (err) {
         if (!cancelled) {
-          setState({ isLoaded: Boolean(typeof window !== 'undefined' && window.google?.maps), error: err.message });
+          setState({ isLoaded: Boolean(window.google?.maps), error: err.message });
         }
       }
     })();

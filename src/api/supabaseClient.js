@@ -166,6 +166,16 @@ function sanitizeRecordForPostgres(record, tableName = '') {
   return clean;
 }
 
+export function extractMissingColumn(error) {
+  if (!error) return null;
+  const msg = error.message || (typeof error === 'string' ? error : '');
+  const m1 = msg.match(/Could not find the '([^']+)' column/i);
+  if (m1) return m1[1];
+  const m2 = msg.match(/column (?:[a-zA-Z0-9_]+\.)?["']?([a-zA-Z0-9_]+)["']? does not exist/i);
+  if (m2) return m2[1];
+  return null;
+}
+
 // Initial mock datasets for demo mode
 const INITIAL_AREAS = [
   { id: 'b0000000-0000-0000-0000-000000000001', name: 'Kalyanpur', city: 'Kanpur', ward: 'Ward 38', district: 'Kanpur Nagar', landmark: 'Near Kalyanpur Crossing', latitude: 26.4927, longitude: 80.2589, active: true },
@@ -174,6 +184,14 @@ const INITIAL_AREAS = [
   { id: 'b0000000-0000-0000-0000-000000000004', name: 'Swaroop Nagar', city: 'Kanpur', ward: 'Ward 21', district: 'Kanpur Nagar', landmark: 'Near Motijheel', latitude: 26.4815, longitude: 80.3182, active: true },
   { id: 'b0000000-0000-0000-0000-000000000005', name: 'Govind Nagar', city: 'Kanpur', ward: 'Ward 54', district: 'Kanpur Nagar', landmark: 'C-Block Market', latitude: 26.4432, longitude: 80.3015, active: true },
   { id: 'b0000000-0000-0000-0000-000000000006', name: 'Kidwai Nagar', city: 'Kanpur', ward: 'Ward 62', district: 'Kanpur Nagar', landmark: 'Central Park', latitude: 26.4358, longitude: 80.3341, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000007', name: 'Barra', city: 'Kanpur', ward: 'Ward 48', district: 'Kanpur Nagar', landmark: 'Barra Bypass', latitude: 26.4250, longitude: 80.2900, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000008', name: 'Gumti No. 5', city: 'Kanpur', ward: 'Ward 33', district: 'Kanpur Nagar', landmark: 'Gumti Market', latitude: 26.4750, longitude: 80.3120, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000009', name: 'Fazalganj', city: 'Kanpur', ward: 'Ward 29', district: 'Kanpur Nagar', landmark: 'Kalpi Road Crossing', latitude: 26.4560, longitude: 80.2980, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000010', name: 'Ratan Lal Nagar', city: 'Kanpur', ward: 'Ward 51', district: 'Kanpur Nagar', landmark: 'Ratan Lal Nagar Crossing', latitude: 26.4380, longitude: 80.2850, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000011', name: 'Shastri Nagar', city: 'Kanpur', ward: 'Ward 35', district: 'Kanpur Nagar', landmark: 'Central Park', latitude: 26.4740, longitude: 80.2910, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000012', name: 'Armapur', city: 'Kanpur', ward: 'Ward 40', district: 'Kanpur Nagar', landmark: 'Armapur Estate', latitude: 26.4800, longitude: 80.2650, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000013', name: 'Rawatpur', city: 'Kanpur', ward: 'Ward 25', district: 'Kanpur Nagar', landmark: 'Rawatpur Station', latitude: 26.4840, longitude: 80.2920, active: true },
+  { id: 'b0000000-0000-0000-0000-000000000014', name: 'Gujaini', city: 'Kanpur', ward: 'Ward 55', district: 'Kanpur Nagar', landmark: 'Gujaini Highway', latitude: 26.4200, longitude: 80.2680, active: true },
 ];
 
 const INITIAL_DEPARTMENTS = [
@@ -377,9 +395,21 @@ function createRepository(tableName, localDefault = [], defaultSort = null) {
         return cleanRecord;
       }
 
-      const { data, error } = await supabase.from(tableName).insert(cleanRecord).select().single();
-      if (error) throw error;
-      return data;
+      let payload = { ...cleanRecord };
+      let maxAttempts = 6;
+      while (maxAttempts > 0) {
+        maxAttempts--;
+        const { data, error } = await supabase.from(tableName).insert(payload).select().single();
+        if (!error) return data;
+
+        const missingCol = extractMissingColumn(error);
+        if (missingCol && missingCol in payload) {
+          console.warn(`[supabase] Column "${missingCol}" not found in schema cache for "${tableName}". Stripping and retrying insertion.`);
+          delete payload[missingCol];
+          continue;
+        }
+        throw error;
+      }
     },
 
     async bulkCreate(records = []) {
@@ -407,15 +437,35 @@ function createRepository(tableName, localDefault = [], defaultSort = null) {
         return formatted;
       }
 
-      const { data, error } = await supabase.from(tableName).insert(formatted).select();
-      if (error) throw error;
-      return data || [];
+      let payloadList = formatted.map((item) => ({ ...item }));
+      let maxAttempts = 6;
+      while (maxAttempts > 0) {
+        maxAttempts--;
+        const { data, error } = await supabase.from(tableName).insert(payloadList).select();
+        if (!error) return data || [];
+
+        const missingCol = extractMissingColumn(error);
+        if (missingCol && payloadList.some((p) => missingCol in p)) {
+          console.warn(`[supabase] Column "${missingCol}" not found in schema cache for "${tableName}". Stripping and retrying bulk insert.`);
+          payloadList = payloadList.map((p) => {
+            const copy = { ...p };
+            delete copy[missingCol];
+            return copy;
+          });
+          continue;
+        }
+        throw error;
+      }
     },
 
     async update(id, patch) {
       const now = new Date().toISOString();
       const normalizedId = normalizeUUID(id) || id;
-      const cleanPatch = sanitizeRecordForPostgres({ ...patch, updated_at: now }, tableName);
+      const patchWithTime = { ...patch };
+      if (tableName === 'complaints' || tableName === 'profiles' || patch.updated_at !== undefined) {
+        patchWithTime.updated_at = patch.updated_at || now;
+      }
+      const cleanPatch = sanitizeRecordForPostgres(patchWithTime, tableName);
       delete cleanPatch.id; // Don't overwrite PK on update
 
       if (!hasValidSupabaseConfig) {
@@ -433,14 +483,26 @@ function createRepository(tableName, localDefault = [], defaultSort = null) {
         return updated;
       }
 
-      const { data, error } = await supabase
-        .from(tableName)
-        .update(cleanPatch)
-        .eq('id', normalizedId)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      let payload = { ...cleanPatch };
+      let maxAttempts = 6;
+      while (maxAttempts > 0) {
+        maxAttempts--;
+        const { data, error } = await supabase
+          .from(tableName)
+          .update(payload)
+          .eq('id', normalizedId)
+          .select()
+          .single();
+        if (!error) return data;
+
+        const missingCol = extractMissingColumn(error);
+        if (missingCol && missingCol in payload) {
+          console.warn(`[supabase] Column "${missingCol}" not found in schema cache for "${tableName}". Stripping and retrying update.`);
+          delete payload[missingCol];
+          continue;
+        }
+        throw error;
+      }
     },
 
     async bulkUpdate(records = []) {

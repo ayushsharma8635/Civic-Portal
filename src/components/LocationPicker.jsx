@@ -5,6 +5,8 @@ import { useGoogleMaps } from '@/hooks/useGoogleMaps';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import ComplaintMap from '@/components/ComplaintMap';
+import { cn } from '@/lib/utils';
+import { showToast } from '@/lib/toast';
 
 const KANPUR_BOUNDS = {
   north: 26.65,
@@ -13,7 +15,25 @@ const KANPUR_BOUNDS = {
   west: 80.10,
 };
 
-export default function LocationPicker({ onSelect }) {
+function findNearestArea(lat, lng, areaList) {
+  if (lat == null || lng == null || !areaList || areaList.length === 0) return null;
+  let nearest = null;
+  let minDistance = Infinity;
+  for (const area of areaList) {
+    if (area.latitude != null && area.longitude != null) {
+      const dLat = area.latitude - lat;
+      const dLng = area.longitude - lng;
+      const dist = dLat * dLat + dLng * dLng;
+      if (dist < minDistance) {
+        minDistance = dist;
+        nearest = area;
+      }
+    }
+  }
+  return nearest;
+}
+
+export default function LocationPicker({ onSelect, defaultArea = 'Kalyanpur' }) {
   const { isLoaded } = useGoogleMaps();
   const [areas, setAreas] = useState([]);
   const [areaQuery, setAreaQuery] = useState('');
@@ -23,25 +43,6 @@ export default function LocationPicker({ onSelect }) {
   const [selectedPlace, setSelectedPlace] = useState(null);
 
   const areaWrapRef = useRef(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.entities.Area.filter({ active: true });
-        setAreas(res.items || res || []);
-      } catch {
-        setAreas([]);
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (areaWrapRef.current && !areaWrapRef.current.contains(e.target)) setAreaOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
 
   const emitSelection = (area, place) => {
     onSelect({
@@ -56,59 +57,243 @@ export default function LocationPicker({ onSelect }) {
   };
 
   const pickArea = (area) => {
+    if (!area) return;
     setSelectedArea(area);
     setAreaQuery(area.name);
     setAreaOpen(false);
-    emitSelection(area, selectedPlace);
+    const updatedPlace = selectedPlace || (area.latitude != null && area.longitude != null
+      ? {
+          location_name: area.name,
+          formatted_address: [area.name, area.ward, 'Kanpur'].filter(Boolean).join(', '),
+          latitude: area.latitude,
+          longitude: area.longitude,
+          google_place_id: '',
+        }
+      : null);
+    if (updatedPlace && !selectedPlace) {
+      setSelectedPlace(updatedPlace);
+    }
+    emitSelection(area, updatedPlace);
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.entities.Area.filter({ active: true });
+        const list = res.items || res || [];
+        setAreas(list);
+        if (list.length > 0) {
+          const match = list.find((a) => a.name.toLowerCase() === defaultArea.toLowerCase()) || list[0];
+          pickArea(match);
+        }
+      } catch {
+        setAreas([]);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (areaWrapRef.current && !areaWrapRef.current.contains(e.target)) setAreaOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleQueryChange = (val) => {
+    setAreaQuery(val);
+    setAreaOpen(true);
+    const trimmed = val.trim();
+    if (!trimmed) {
+      setSelectedArea(null);
+      emitSelection(null, selectedPlace);
+      return;
+    }
+    const matched = areas.find((a) => a.name.toLowerCase() === trimmed.toLowerCase());
+    if (matched) {
+      setSelectedArea(matched);
+      emitSelection(matched, selectedPlace);
+    } else {
+      const customArea = { id: null, name: trimmed };
+      setSelectedArea(customArea);
+      emitSelection(customArea, selectedPlace);
+    }
   };
 
   const useGps = () => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser', 'error');
+      return;
+    }
     setUsingGps(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        if (isLoaded && window.google.maps) {
+
+    const onGeoSuccess = async (pos) => {
+      const { latitude, longitude } = pos.coords;
+
+      // 1. Immediately find nearest registered area where pin drops
+      let detectedArea = findNearestArea(latitude, longitude, areas) || selectedArea;
+      let detectedLocationName = detectedArea?.name || 'Current Location';
+      let detectedAddress = detectedArea ? `${detectedArea.name}, Kanpur` : 'Kanpur';
+
+      // 2. Reverse geocode to refine address & neighborhood
+      try {
+        if (isLoaded && window.google?.maps) {
           const geocoder = new window.google.maps.Geocoder();
-          geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
-            setUsingGps(false);
-            if (status === 'OK' && results[0]) {
-              const r = results[0];
-              const placeData = {
-                location_name: r.address_components?.[0]?.long_name || 'Current Location',
-                formatted_address: r.formatted_address,
-                latitude, longitude,
-                google_place_id: r.place_id || '',
-              };
-              setSelectedPlace(placeData);
-              emitSelection(selectedArea, placeData);
-            } else {
-              const placeData = { location_name: 'Current Location', formatted_address: '', latitude, longitude, google_place_id: '' };
-              setSelectedPlace(placeData);
-              emitSelection(selectedArea, placeData);
-            }
+          const res = await new Promise((resolve) => {
+            geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+              if (status === 'OK' && results?.[0]) resolve(results[0]);
+              else resolve(null);
+            });
           });
+          if (res) {
+            const comp = res.address_components || [];
+            const sublocality = comp.find((c) =>
+              c.types?.includes('sublocality') ||
+              c.types?.includes('sublocality_level_1') ||
+              c.types?.includes('neighborhood')
+            )?.long_name;
+
+            if (sublocality) {
+              const matched = areas.find((a) => a.name.toLowerCase() === sublocality.toLowerCase());
+              detectedArea = matched || { id: null, name: sublocality };
+              detectedLocationName = sublocality;
+            }
+            detectedAddress = res.formatted_address || detectedAddress;
+          }
         } else {
-          const placeData = { location_name: 'Current Location', formatted_address: '', latitude, longitude, google_place_id: '' };
-          setSelectedPlace(placeData);
-          setUsingGps(false);
-          emitSelection(selectedArea, placeData);
+          // OpenStreetMap Nominatim reverse geocoding fallback
+          const nomRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          ).then((r) => r.json()).catch(() => null);
+
+          if (nomRes?.address) {
+            const addr = nomRes.address;
+            const sublocality =
+              addr.suburb ||
+              addr.neighbourhood ||
+              addr.city_district ||
+              addr.residential ||
+              addr.quarter ||
+              addr.commercial ||
+              addr.road;
+
+            if (sublocality) {
+              const matched = areas.find((a) =>
+                a.name.toLowerCase().includes(sublocality.toLowerCase()) ||
+                sublocality.toLowerCase().includes(a.name.toLowerCase())
+              );
+              if (matched) {
+                detectedArea = matched;
+              } else if (!detectedArea) {
+                detectedArea = { id: null, name: sublocality };
+              }
+              detectedLocationName = sublocality;
+            }
+            detectedAddress = nomRes.display_name || detectedAddress;
+          }
         }
+      } catch {
+        // Fallback handled by nearest area
+      }
+
+      // 3. Update all states
+      if (detectedArea) {
+        setSelectedArea(detectedArea);
+        setAreaQuery(detectedArea.name);
+      }
+
+      const placeData = {
+        location_name: detectedLocationName,
+        formatted_address: detectedAddress,
+        latitude,
+        longitude,
+        google_place_id: '',
+      };
+      setSelectedPlace(placeData);
+      setUsingGps(false);
+      emitSelection(detectedArea, placeData);
+      showToast(`Pinned location at ${detectedArea?.name || detectedLocationName}`, 'success');
+    };
+
+    const onGeoError = () => {
+      setUsingGps(false);
+      const defaultPin = {
+        location_name: selectedArea?.name || 'Kanpur Center',
+        formatted_address: selectedArea ? `${selectedArea.name}, Kanpur` : 'Kanpur, Uttar Pradesh',
+        latitude: selectedArea?.latitude || 26.4499,
+        longitude: selectedArea?.longitude || 80.3319,
+        google_place_id: '',
+      };
+      setSelectedPlace(defaultPin);
+      emitSelection(selectedArea, defaultPin);
+      showToast('GPS unavailable. Dropped pin on map - click or drag to adjust.', 'info');
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      onGeoSuccess,
+      () => {
+        // Automatic retry with enableHighAccuracy: false for quick desktop/wifi location
+        navigator.geolocation.getCurrentPosition(
+          onGeoSuccess,
+          onGeoError,
+          { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 }
+        );
       },
-      () => { setUsingGps(false); }
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
     );
   };
 
-  const handleMapPick = (p) => {
+  const handleMapPick = async (p) => {
+    // 1. Immediately find nearest area where the pin dropped on the map!
+    const nearest = findNearestArea(p.lat, p.lng, areas);
+    let detectedArea = nearest || selectedArea;
+    let locationName = detectedArea?.name || 'Pinned Location';
+    let formattedAddress = detectedArea ? `${detectedArea.name}, Kanpur` : 'Kanpur';
+
+    if (detectedArea) {
+      setSelectedArea(detectedArea);
+      setAreaQuery(detectedArea.name);
+    }
+
     const placeData = {
-      ...selectedPlace,
-      location_name: selectedPlace?.location_name || 'Pinned Location',
+      location_name: locationName,
+      formatted_address: formattedAddress,
       latitude: p.lat,
       longitude: p.lng,
-      google_place_id: selectedPlace?.google_place_id || '',
+      google_place_id: '',
     };
     setSelectedPlace(placeData);
-    emitSelection(selectedArea, placeData);
+    emitSelection(detectedArea, placeData);
+
+    // 2. Refine reverse-geocoded address asynchronously
+    try {
+      const nomRes = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en' } }
+      ).then((r) => r.json()).catch(() => null);
+
+      if (nomRes?.address) {
+        const addr = nomRes.address;
+        const sublocality =
+          addr.suburb ||
+          addr.neighbourhood ||
+          addr.city_district ||
+          addr.residential ||
+          addr.quarter ||
+          addr.road;
+
+        const updatedPlace = {
+          ...placeData,
+          location_name: sublocality || placeData.location_name,
+          formatted_address: nomRes.display_name || placeData.formatted_address,
+        };
+        setSelectedPlace(updatedPlace);
+        emitSelection(detectedArea, updatedPlace);
+      }
+    } catch {
+      // ignore
+    }
   };
 
   const filteredAreas = areaQuery.trim()
@@ -131,18 +316,25 @@ export default function LocationPicker({ onSelect }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
           <Input
             value={areaQuery}
-            onChange={(e) => { setAreaQuery(e.target.value); setAreaOpen(true); }}
+            onChange={(e) => handleQueryChange(e.target.value)}
             onFocus={() => setAreaOpen(true)}
-            placeholder="Search Kanpur area..."
+            placeholder="Search or type area (e.g. Kakadeo, Kalyanpur)..."
             className="pl-10 h-11"
           />
           {areaOpen && (
             <div className="absolute z-30 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg max-h-56 overflow-y-auto">
               {filteredAreas.length === 0 ? (
-                <div className="p-3 text-sm text-muted-foreground">No areas found.</div>
+                <div className="p-3 text-sm text-muted-foreground">
+                  No matching registered area. Your typed name &ldquo;{areaQuery}&rdquo; will be used.
+                </div>
               ) : (
                 filteredAreas.map((a) => (
-                  <button key={a.id} onClick={() => pickArea(a)} className="w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-accent">
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => pickArea(a)}
+                    className="w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-accent cursor-pointer transition-colors"
+                  >
                     <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                     <div>
                       <p className="text-sm font-medium text-foreground">{a.name}</p>
@@ -154,6 +346,31 @@ export default function LocationPicker({ onSelect }) {
             </div>
           )}
         </div>
+
+        {/* Quick select popular areas chips */}
+        {areas.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            <span className="text-xs text-muted-foreground font-medium mr-1">Popular:</span>
+            {areas.slice(0, 7).map((a) => {
+              const isSelected = selectedArea?.name?.toLowerCase() === a.name.toLowerCase();
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => pickArea(a)}
+                  className={cn(
+                    "text-xs px-2.5 py-1 rounded-full border transition-all cursor-pointer",
+                    isSelected
+                      ? "bg-primary text-primary-foreground border-primary font-semibold shadow-xs"
+                      : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border-border/60"
+                  )}
+                >
+                  {a.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <Button variant="outline" onClick={useGps} disabled={usingGps} className="w-full sm:w-auto">

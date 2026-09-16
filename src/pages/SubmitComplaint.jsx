@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, MapPin, Loader2, Wand2, AlertTriangle, Clock } from "lucide-react";
+import { Sparkles, MapPin, Loader2, Wand2, AlertTriangle, Clock, Check } from "lucide-react";
 import { api } from "@/api/supabaseClient";
 import { showToast } from "@/lib/toast";
 import LocationPicker from "@/components/LocationPicker";
@@ -24,8 +24,8 @@ export default function SubmitComplaint() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     title: "", description: "", category: "Road Damage",
-    location: "", area: "", area_id: "", location_name: "", formatted_address: "", google_place_id: "",
-    latitude: null, longitude: null,
+    location: "Kalyanpur, Kanpur", area: "Kalyanpur", area_name: "Kalyanpur", area_id: "", location_name: "Kalyanpur", formatted_address: "Kalyanpur, Kanpur", google_place_id: "",
+    latitude: 26.4950, longitude: 80.2600,
   });
   const [media, setMedia] = useState([]);
   const [ai, setAi] = useState(null);
@@ -67,21 +67,38 @@ export default function SubmitComplaint() {
       showToast("Title and description are required", "warning");
       return;
     }
-    if (!form.area) {
-      showToast("Please select your area/locality", "warning");
-      return;
-    }
+    const resolvedArea = (
+      form.area ||
+      form.area_name ||
+      form.location ||
+      form.location_name ||
+      form.formatted_address ||
+      "Kalyanpur"
+    ).trim() || "Kalyanpur";
+
     setSubmitting(true);
     try {
       const currentUser = await api.auth.me().catch(() => null);
       const now = new Date().toISOString();
       const expectedDate = computeExpectedDate(now, estimatedDays);
       const complaint = {
-        ...form,
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        area: resolvedArea,
+        area_name: resolvedArea,
         area_id: form.area_id || null,
+        location: form.location || form.formatted_address || form.location_name || resolvedArea,
+        location_name: form.location_name || resolvedArea,
+        formatted_address: form.formatted_address || "",
+        address: form.formatted_address || form.location || resolvedArea,
+        google_place_id: form.google_place_id || "",
+        latitude: form.latitude ?? null,
+        longitude: form.longitude ?? null,
         created_by_id: currentUser?.id || null,
         citizen_name: currentUser?.full_name || currentUser?.email?.split('@')[0] || 'Citizen',
         citizen_email: currentUser?.email || '',
+        citizen_phone: currentUser?.phone || '',
         priority: ai?.priority || "Medium",
         department: ai?.suggested_department || "",
         ai_summary: ai?.ai_summary || "",
@@ -150,18 +167,30 @@ export default function SubmitComplaint() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><MapPin className="h-4 w-4 text-indigo-500" /> Select Complaint Location</CardTitle></CardHeader>
+      <Card id="location-card" className="scroll-mt-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-indigo-500" /> Select Complaint Location
+            </CardTitle>
+            {form.area && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                <Check className="h-3 w-3" /> {form.area}
+              </span>
+            )}
+          </div>
+        </CardHeader>
         <CardContent>
           <LocationPicker
             onSelect={(loc) => {
               setForm((f) => ({
                 ...f,
                 area: loc.area_name,
+                area_name: loc.area_name,
                 area_id: loc.area_id,
                 location_name: loc.location_name,
                 formatted_address: loc.formatted_address,
-                location: loc.formatted_address || loc.location_name,
+                location: loc.formatted_address || loc.location_name || loc.area_name,
                 google_place_id: loc.google_place_id,
                 latitude: loc.latitude,
                 longitude: loc.longitude,

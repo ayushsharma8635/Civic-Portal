@@ -218,7 +218,7 @@ CREATE TABLE IF NOT EXISTS public.complaints (
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION,
   priority TEXT NOT NULL DEFAULT 'Medium' CHECK (priority IN ('Low', 'Medium', 'High', 'Urgent')),
-  status TEXT NOT NULL DEFAULT 'Submitted' CHECK (status IN ('Submitted', 'Pending', 'In Review', 'In Progress', 'Assigned', 'Resolved', 'Rejected')),
+  status TEXT NOT NULL DEFAULT 'Submitted' CHECK (status IN ('Submitted', 'Pending', 'In Review', 'Assigned', 'Accepted', 'Work Started', 'In Progress', 'Work Completed', 'Resolved', 'Rejected')),
   is_spam BOOLEAN NOT NULL DEFAULT false,
   duplicate_of TEXT,
   ai_summary TEXT,
@@ -239,7 +239,13 @@ CREATE TABLE IF NOT EXISTS public.complaints (
   temp_contact TEXT,
   timeline JSONB DEFAULT '[]'::jsonb,
   actual_resolved_date TIMESTAMPTZ,
+  location TEXT,
+  area TEXT,
+  location_name TEXT,
+  formatted_address TEXT,
+  google_place_id TEXT,
   created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
@@ -453,39 +459,99 @@ BEGIN
     END;
   END IF;
 
-  -- Safe column synchronization: ensure created_date column exists on existing tables
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'departments' AND column_name = 'created_date'
-  ) THEN
-    BEGIN
-      ALTER TABLE public.departments ADD COLUMN created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now());
-    EXCEPTION WHEN OTHERS THEN
-      NULL;
-    END;
-  END IF;
+  -- Safe column synchronization: ensure all columns exist on existing tables
+  -- Complaints
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS citizen_name TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS citizen_email TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS citizen_phone TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS area_name TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS landmark TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS address TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS location TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS area TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS location_name TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS formatted_address TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS google_place_id TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS estimated_days INTEGER;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS expected_date TIMESTAMPTZ;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS is_delayed BOOLEAN DEFAULT false;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS temporary_solution TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS temp_alt_route TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS temp_alt_facility TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS temp_availability_time TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS temp_contact TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS timeline JSONB DEFAULT '[]'::jsonb;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS actual_resolved_date TIMESTAMPTZ;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS ai_summary TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS remarks TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS duplicate_of TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS is_spam BOOLEAN DEFAULT false;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS officer_name TEXT;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS officer_id UUID REFERENCES public.officers(id) ON DELETE SET NULL;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS created_by_id UUID;
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS created_date TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.complaints ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
 
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'areas' AND column_name = 'created_date'
-  ) THEN
-    BEGIN
-      ALTER TABLE public.areas ADD COLUMN created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now());
-    EXCEPTION WHEN OTHERS THEN
-      NULL;
-    END;
-  END IF;
+  -- Update status check constraint on complaints to allow all valid statuses
+  BEGIN
+    ALTER TABLE public.complaints DROP CONSTRAINT IF EXISTS complaints_status_check;
+    ALTER TABLE public.complaints ADD CONSTRAINT complaints_status_check 
+      CHECK (status IN ('Submitted', 'Pending', 'In Review', 'Assigned', 'Accepted', 'Work Started', 'In Progress', 'Work Completed', 'Resolved', 'Rejected'));
+  EXCEPTION WHEN OTHERS THEN
+    NULL;
+  END;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'officers' AND column_name = 'created_date'
-  ) THEN
-    BEGIN
-      ALTER TABLE public.officers ADD COLUMN created_date TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now());
-    EXCEPTION WHEN OTHERS THEN
-      NULL;
-    END;
-  END IF;
+  -- Update media phase check constraint to include citizen uploads
+  BEGIN
+    ALTER TABLE public.complaint_media DROP CONSTRAINT IF EXISTS complaint_media_phase_check;
+    ALTER TABLE public.complaint_media ADD CONSTRAINT complaint_media_phase_check 
+      CHECK (phase IN ('citizen', 'before', 'during', 'after'));
+  EXCEPTION WHEN OTHERS THEN
+    NULL;
+  END;
+
+  -- Departments
+  ALTER TABLE public.departments ADD COLUMN IF NOT EXISTS created_date TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.departments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.departments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+  -- Areas
+  ALTER TABLE public.areas ADD COLUMN IF NOT EXISTS created_date TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.areas ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.areas ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+  -- Officers
+  ALTER TABLE public.officers ADD COLUMN IF NOT EXISTS created_date TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.officers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.officers ADD COLUMN IF NOT EXISTS profile_photo TEXT;
+  ALTER TABLE public.officers ADD COLUMN IF NOT EXISTS area_name TEXT;
+  ALTER TABLE public.officers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+  -- Profiles
+  ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+  ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
+  ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+  -- Complaint Media
+  ALTER TABLE public.complaint_media ADD COLUMN IF NOT EXISTS created_date TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.complaint_media ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.complaint_media ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+  -- Notifications
+  ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS read BOOLEAN DEFAULT false;
+  ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT false;
+  ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS created_date TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+  ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
+  -- Backfill and synchronize existing rows for timestamps and read status
+  UPDATE public.departments SET created_date = COALESCE(created_date, created_at, now()), created_at = COALESCE(created_at, created_date, now()), updated_at = COALESCE(updated_at, created_date, created_at, now());
+  UPDATE public.areas SET created_date = COALESCE(created_date, created_at, now()), created_at = COALESCE(created_at, created_date, now()), updated_at = COALESCE(updated_at, created_date, created_at, now());
+  UPDATE public.officers SET created_date = COALESCE(created_date, created_at, now()), created_at = COALESCE(created_at, created_date, now()), updated_at = COALESCE(updated_at, created_date, created_at, now());
+  UPDATE public.complaint_media SET created_date = COALESCE(created_date, created_at, now()), created_at = COALESCE(created_at, created_date, now()), updated_at = COALESCE(updated_at, created_date, created_at, now());
+  UPDATE public.notifications SET created_date = COALESCE(created_date, created_at, now()), created_at = COALESCE(created_at, created_date, now()), updated_at = COALESCE(updated_at, created_date, created_at, now()), read = COALESCE(read, is_read, false), is_read = COALESCE(is_read, read, false);
+  UPDATE public.complaints SET created_date = COALESCE(created_date, created_at, now()), created_at = COALESCE(created_at, created_date, now()), updated_at = COALESCE(updated_at, created_date, created_at, now());
 EXCEPTION
   WHEN OTHERS THEN
     NULL;
@@ -598,4 +664,8 @@ GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
+
+-- Force PostgREST to immediately refresh its schema cache
+NOTIFY pgrst, 'reload schema';
+
 

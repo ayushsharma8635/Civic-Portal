@@ -164,3 +164,9 @@
     transform: translateY(-15px);
   }
 }
+
+/* Custom Leaflet Map Marker */
+.custom-leaflet-marker {
+  background: transparent !important;
+  border: none !important;
+}

@@ -16,12 +16,20 @@ export default defineConfig(({ mode }) => {
     env.GOOGLE_MAP_API_KEY ||
     env.VITE_MAPS_API_KEY ||
     env.MAPS_API_KEY ||
+    env.VITE_MAP_API_KEY ||
+    env.MAP_API_KEY ||
+    env.VITE_GOOGLE_API_KEY ||
+    env.GOOGLE_API_KEY ||
     process.env.VITE_GOOGLE_MAPS_API_KEY ||
     process.env.GOOGLE_MAPS_API_KEY ||
     process.env.VITE_GOOGLE_MAP_API_KEY ||
     process.env.GOOGLE_MAP_API_KEY ||
     process.env.VITE_MAPS_API_KEY ||
     process.env.MAPS_API_KEY ||
+    process.env.VITE_MAP_API_KEY ||
+    process.env.MAP_API_KEY ||
+    process.env.VITE_GOOGLE_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
     ''
   ).trim();
 
@@ -30,7 +38,7 @@ export default defineConfig(({ mode }) => {
     define: {
       '__GOOGLE_MAPS_API_KEY__': JSON.stringify(googleMapsKey),
     },
-    envPrefix: ['VITE_', 'GOOGLE_'],
+    envPrefix: ['VITE_', 'GOOGLE_', 'MAPS_', 'MAP_'],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),

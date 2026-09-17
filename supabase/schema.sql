@@ -735,12 +735,27 @@ FROM (VALUES
 ) AS v(id, name, city, ward, district, landmark, latitude, longitude, active)
 WHERE LOWER(a.name) = LOWER(v.name);
 
--- 3. Officers: insert missing seed records
+-- 3. Officers: insert missing seed records (17 Municipal Field Officers)
 INSERT INTO public.officers (id, name, employee_id, email, mobile, username, password_hash, department, area_name, area_id, designation, status)
-SELECT v.id::uuid, v.name, v.employee_id, v.email, v.mobile, v.username, v.password_hash, v.department, v.area_name, v.area_id::uuid, v.designation, v.status
+SELECT v.id::uuid, v.name, v.employee_id, v.email, v.mobile, v.username, v.password_hash, v.department, v.area_name, v.area_id, v.designation, v.status
 FROM (VALUES
-  ('c0000000-0000-0000-0000-000000000001', 'Er. Vikram Singh', 'OFF-KN-2024-01', 'vikram.singh@kanpur.gov.in', '9876543210', 'officer1', 'password123', 'Public Works Department (PWD)', 'Kalyanpur', 'b0000000-0000-0000-0000-000000000001', 'Junior Engineer', 'Active'),
-  ('c0000000-0000-0000-0000-000000000002', 'Smt. Sunita Yadav', 'OFF-KN-2024-02', 'sunita.yadav@kanpur.gov.in', '9876543211', 'officer2', 'password123', 'Jal Sansthan (Water & Drainage)', 'Kakadeo', 'b0000000-0000-0000-0000-000000000002', 'Assistant Engineer', 'Active')
+  ('b4a733b5-effd-42e6-ab70-157b09a6e629', 'Amit Verma', 'OF002', 'amit.verma@civicdemo.in', '9876543211', 'amit.verma', 'Officer@123', 'Garbage Collection', 'Swaroop Nagar', '90558827-d24b-47d1-9007-c9fce7decd03'::uuid, 'Sanitation Officer', 'Active'),
+  ('49e4e5d3-f15e-436f-bb62-34e3aea5e21d', 'Ankit Mishra', 'OF007', 'ankit.mishra@civicdemo.in', '9876543216', 'ankit.mishra', 'Officer@123', 'Stray Animals', 'Panki', '149b8003-72ae-4f81-8e22-4fa4748b61a3'::uuid, 'Animal Control Officer', 'Active'),
+  ('b098062e-5141-4c37-9aa9-ba00ff89d205', 'Arjun Patel', 'OF010', 'arjun.patel@civicdemo.in', '9876543219', 'arjun.patel', 'Officer@123', 'Other', 'Parade', '7b461b6b-2193-48b9-9417-5227fa3c6260'::uuid, 'General Field Officer', 'Active'),
+  ('c165dd10-c837-4742-b06a-e63f69cfc29f', 'Deepak Kumar', 'OF013', 'deepak.kumar@civicdemo.in', '9876543222', 'deepak.kumar', 'Officer@123', 'Street Light', 'Kakadeo', 'a3a08823-6bb2-4c8f-9966-b7cd6bcd5542'::uuid, 'Electrical Field Officer', 'Active'),
+  ('c84d5c60-42fe-478b-bfb5-f8254ffbeb9a', 'Er. Vikram Singh', 'OFF-KN-2024-01', 'vikram.singh@kanpur.gov.in', '9876543210', 'ayush.sharma', 'ayu123', 'Public Works Department (PWD)', '', NULL, 'Junior Engineer', 'Active'),
+  ('b8815ccc-d89d-4368-b91c-c1103f429282', 'Kavita Sharma', 'OF012', 'kavita.sharma@civicdemo.in', '9876543221', 'kavita.sharma', 'Officer@123', 'Garbage Collection', 'Naubasta East', 'daa1a5cb-b53b-4601-b3a7-6077114cc130'::uuid, 'Sanitation Inspector', 'Active'),
+  ('9f31484e-61d1-4115-8d0f-08500d96cef0', 'Manish Gupta', 'OF011', 'manish.gupta@civicdemo.in', '9876543220', 'manish.gupta', 'Officer@123', 'Road Damage', 'Chakeri', '913e18fa-cdf3-40fc-8e5f-1778a9f1fd02'::uuid, 'Junior Field Officer', 'Active'),
+  ('a5d27a2f-84a3-406c-9ca7-4aea5adc9c5a', 'Neha Singh', 'OF003', 'neha.singh@civicdemo.in', '9876543212', 'neha.singh', 'Officer@123', 'Street Light', 'Shastri Nagar', 'e4e404c0-1dd3-4438-87db-d0b70d65f889'::uuid, 'Electrical Officer', 'Active'),
+  ('b4600ce3-a3ba-4be9-a7ec-468cdd67b01e', 'Nitin Singh', 'OF014', 'nitin.singh@civicdemo.in', '9876543223', 'nitin.singh', 'Officer@123', 'Water Leakage', 'Jajmau South', '41ead400-0b75-45d9-b0fa-c8d50e809768'::uuid, 'Water Works Inspector', 'Active'),
+  ('7502a826-d301-4053-b089-d7599c74db9f', 'Pooja Gupta', 'OF005', 'pooja.gupta@civicdemo.in', '9876543214', 'pooja.gupta', 'Officer@123', 'Drainage', 'Barra', '6c1107ae-a2e8-498a-8661-dd95f4f99097'::uuid, 'Drainage Officer', 'Active'),
+  ('006ff512-92a7-4427-abc9-0520e8b65f64', 'Priya Singh', 'OF008', 'priya.singh@civicdemo.in', '9876543217', 'priya.singh', 'Officer@123', 'Illegal Parking', 'Kakadeo', 'a3a08823-6bb2-4c8f-9966-b7cd6bcd5542'::uuid, 'Traffic Officer', 'Active'),
+  ('83307c90-d22d-462f-8252-94f4693a6465', 'Raj Kumar', 'OF001', 'raj.kumar@civicdemo.in', '9876543210', 'raj.kumar', 'Officer@123', 'Road Damage', 'Kalyanpur', '9a5751c2-ac09-41d8-add9-e66e2f96d54e'::uuid, 'Field Officer', 'Active'),
+  ('8368237c-2393-4cec-b48d-80fba0f60621', 'Rakesh Verma', 'OF015', 'rakesh.verma@civicdemo.in', '9876543224', 'rakesh.verma', 'Officer@123', 'Drainage', 'Hans Puram', 'eaf37c91-25c2-4fa0-a83a-8dd0d41d3242'::uuid, 'Drainage Inspector', 'Active'),
+  ('904d90a5-de16-4ce1-b5fe-422f34f3207b', 'Rohit Sharma', 'OF004', 'rohit.sharma@civicdemo.in', '9876543213', 'rohit.sharma', 'Officer@123', 'Water Leakage', 'Kidwai Nagar', '1cdec55d-a068-4d88-b8cf-3586ac4c998e'::uuid, 'Water Works Officer', 'Active'),
+  ('3020c1c5-b56d-4f69-8ac2-eac80a66650e', 'Sandeep Yadav', 'OF006', 'sandeep.yadav@civicdemo.in', '9876543215', 'sandeep.yadav', 'Officer@123', 'Electricity', 'Govind Nagar', 'f1ba23c8-f52b-470c-927f-765bc8522014'::uuid, 'Electrical Inspector', 'Active'),
+  ('07a3cbf6-81ef-472d-8274-7d760779a0ad', 'Smt. Sunita Yadav', 'OFF-KN-2024-02', 'sunita.yadav@kanpur.gov.in', '9876543211', 'officer2', 'ayu123', 'Jal Sansthan (Water & Drainage)', 'Kakadeo', NULL, 'Assistant Engineer', 'Active'),
+  ('b5c26335-fbbb-45fe-a13b-af72c341d180', 'Vivek Tiwari', 'OF009', 'vivek.tiwari@civicdemo.in', '9876543218', 'vivek.tiwari', 'Officer@123', 'Public Safety', 'Civil Lines', '93d6f528-5327-427a-90e8-174904f07814'::uuid, 'Safety Officer', 'Active')
 ) AS v(id, name, employee_id, email, mobile, username, password_hash, department, area_name, area_id, designation, status)
 WHERE NOT EXISTS (
   SELECT 1 FROM public.officers o WHERE o.id = v.id::uuid OR o.username = v.username

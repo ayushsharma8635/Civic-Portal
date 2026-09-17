@@ -44,7 +44,10 @@ export const supabase = createClient(
   }
 );
 
-export const PRODUCTION_SITE_URL = 'https://civic-portal-eight.vercel.app';
+export const PRODUCTION_SITE_URL = (
+  import.meta.env.VITE_SITE_URL ||
+  'https://civicportalproject-aaaa1-6bb1.vercel.app'
+).replace(/\/+$/, '');
 
 /**
  * Returns an absolute redirect URL on the Civic Portal application domain,

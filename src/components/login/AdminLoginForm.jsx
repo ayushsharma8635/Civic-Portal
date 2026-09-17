@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { api, AUTHORIZED_ADMIN_EMAIL, isAuthorizedAdminEmail } from '@/api/supabaseClient';
+import { api, isAuthorizedAdminEmail } from '@/api/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Mail, Lock, Loader2, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, Loader2, ArrowLeft } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
 import GoogleIcon from '@/components/GoogleIcon';
 import GoogleSignInModal from '@/components/GoogleSignInModal';
 
 export default function AdminLoginForm({ onBack }) {
-  const [email, setEmail] = useState(AUTHORIZED_ADMIN_EMAIL);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export default function AdminLoginForm({ onBack }) {
         setError(decodeURIComponent(hashError.replace(/\+/g, ' ')));
         window.history.replaceState({}, '', window.location.pathname);
       } else if (searchParams.get('error') === 'unauthorized') {
-        setError('Unauthorized access. Only the designated system administrator can access the Admin Dashboard.');
+        setError('Unauthorized access. Only authorized administrators can access the Admin Dashboard.');
       }
     }
   }, []);
@@ -41,7 +41,7 @@ export default function AdminLoginForm({ onBack }) {
     setError('');
 
     if (!isAuthorizedAdminEmail(email)) {
-      setError(`Access denied. Only the single authorized administrator (${AUTHORIZED_ADMIN_EMAIL}) is permitted to log in.`);
+      setError('Access denied. Only authorized administrators are permitted to log in.');
       return;
     }
 
@@ -58,9 +58,7 @@ export default function AdminLoginForm({ onBack }) {
     } catch (err) {
       const msg = err.message || '';
       if (msg.toLowerCase().includes('invalid login credentials') || msg.toLowerCase().includes('user not found')) {
-        setError(
-          `Authentication failed. If this admin account has not been created yet in Supabase, please create "${AUTHORIZED_ADMIN_EMAIL}" manually in your Supabase Dashboard under Authentication -> Users.`
-        );
+        setError('Authentication failed. Invalid admin credentials.');
       } else {
         setError(err.message || 'Invalid email or password');
       }
@@ -111,13 +109,6 @@ export default function AdminLoginForm({ onBack }) {
         <ArrowLeft className="h-3 w-3" /> Back to role selection
       </button>
 
-      <div className="mb-4 p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs text-muted-foreground flex items-start gap-2">
-        <ShieldAlert className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-        <div>
-          <span className="font-semibold text-foreground">Designated Admin:</span> {AUTHORIZED_ADMIN_EMAIL}
-        </div>
-      </div>
-
       <Button variant="outline" className="w-full h-12 text-sm font-medium mb-6" onClick={handleGoogle}>
         <GoogleIcon className="w-5 h-5 mr-2" />
         Continue with Google (Admin)
@@ -135,7 +126,7 @@ export default function AdminLoginForm({ onBack }) {
           <Label htmlFor="admin-email">Admin Email</Label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input id="admin-email" type="email" autoComplete="email" autoFocus placeholder={AUTHORIZED_ADMIN_EMAIL} value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10 h-12" required />
+            <Input id="admin-email" type="email" autoComplete="email" autoFocus placeholder="admin@example.com" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10 h-12" required />
           </div>
         </div>
         <div className="space-y-2">

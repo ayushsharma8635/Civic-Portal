@@ -3,7 +3,7 @@ import { Shield, User, X, Key, ExternalLink } from 'lucide-react';
 import GoogleIcon from '@/components/GoogleIcon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { supabase, isAuthorizedAdminEmail, AUTHORIZED_ADMIN_EMAIL, getAuthRedirectUrl, hasValidSupabaseConfig } from '@/api/supabaseClient';
+import { supabase, isAuthorizedAdminEmail, getAuthRedirectUrl, hasValidSupabaseConfig } from '@/api/supabaseClient';
 
 // Helper to decode Google JWT token
 function parseJwt(token) {
@@ -51,7 +51,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
     const currentRole = roleRef.current || defaultRole;
     const isAuthorizedAdmin = isAuthorizedAdminEmail(payload.email);
     if (currentRole === 'admin' && !isAuthorizedAdmin) {
-      alert(`Access denied: Only the authorized administrator account (${AUTHORIZED_ADMIN_EMAIL}) can sign in as Admin.`);
+      alert('Access denied: Only authorized administrators can sign in as Admin.');
       return;
     }
 
@@ -200,7 +200,7 @@ export default function GoogleSignInModal({ isOpen, onClose, defaultRole = 'citi
             <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <div>
               <p className="font-semibold text-emerald-700 dark:text-emerald-300">Administrator Portal</p>
-              <p className="text-muted-foreground text-[11px]">Only the authorized system administrator account ({AUTHORIZED_ADMIN_EMAIL}) can access this portal.</p>
+              <p className="text-muted-foreground text-[11px]">Only authorized system administrators can access this portal.</p>
             </div>
           </div>
         ) : (

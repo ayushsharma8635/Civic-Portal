@@ -61,6 +61,45 @@ export default function ComplaintMap({ position, onPick, markers = [], height = 
     }
   }, [useGoogle]);
 
+  // Continuously suppress and auto-dismiss Google Maps warning dialogs and backdrops
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+    const container = mapContainerRef.current;
+
+    const cleanupErrors = () => {
+      const errorElements = container.querySelectorAll(
+        '.gm-err-container, .gm-err-content, [role="dialog"], a[href*="mapsjs-error"], .dismissButton'
+      );
+      errorElements.forEach((el) => {
+        const modalBox = el.closest('[role="dialog"]') || el.closest('.gm-err-container') || el.closest('div[style*="z-index"]') || el;
+        if (modalBox && modalBox !== container) {
+          modalBox.style.setProperty('display', 'none', 'important');
+          modalBox.style.setProperty('visibility', 'hidden', 'important');
+          modalBox.style.setProperty('pointer-events', 'none', 'important');
+        }
+      });
+
+      // Remove dark overlay backdrop Google Maps injects
+      const overlays = container.querySelectorAll('div[style*="rgba(0, 0, 0"]');
+      overlays.forEach((o) => {
+        o.style.setProperty('display', 'none', 'important');
+      });
+    };
+
+    const observer = new MutationObserver(() => {
+      cleanupErrors();
+    });
+
+    observer.observe(container, { childList: true, subtree: true });
+    cleanupErrors();
+
+    const timer = setInterval(cleanupErrors, 400);
+    return () => {
+      observer.disconnect();
+      clearInterval(timer);
+    };
+  }, [useGoogle]);
+
   // Update draggable position marker and pan/zoom
   useEffect(() => {
     if (!useGoogle || !googleMapInstance.current) return;

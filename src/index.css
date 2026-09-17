@@ -165,13 +165,23 @@
   }
 }
 
-/* Google Maps Seamless Presentation */
-.gm-err-container {
+/* Google Maps Seamless Presentation & Error Dialog Suppression */
+.gm-err-container,
+.gm-err-content,
+.gm-err-autocomplete,
+.dismissButton,
+div[role="dialog"]:has(a[href*="mapsjs-error"]),
+div[role="dialog"]:has(.gm-err-content),
+div:has(> .gm-err-content),
+div:has(> .dismissButton) {
   display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
 }
-.gm-err-autocomplete {
-  display: none !important;
-}
-.dismissButton {
+
+/* Remove dark overlay backdrop layers injected by Google Maps warning */
+.gm-style div[style*="rgba(0, 0, 0, 0.5)"],
+.gm-style div[style*="rgba(0, 0, 0, 0.4)"] {
   display: none !important;
 }

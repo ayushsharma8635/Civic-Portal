@@ -180,7 +180,7 @@ export function extractMissingColumn(error) {
 }
 
 // Initial mock datasets for demo mode
-const INITIAL_AREAS = [
+export const INITIAL_AREAS = [
   { id: 'd5151169-aa65-4415-a0e0-6acd240c3211', name: "Anwar Ganj", city: 'Kanpur', ward: "Ward 56", district: 'Kanpur Nagar', landmark: "Anwar Ganj Railway Station", latitude: 26.4507, longitude: 80.3425, active: true },
   { id: 'be45eda3-b526-47ca-9e46-1b1d6119022c', name: "Baboo Purwa", city: 'Kanpur', ward: "Ward 105", district: 'Kanpur Nagar', landmark: "Baboo Purwa Chauraha", latitude: 26.42, longitude: 80.348, active: true },
   { id: 'e64162b7-9ab8-4d6c-ae7c-33b1634ec7fb', name: "Babu Purwa Colony", city: 'Kanpur', ward: "Ward 80", district: 'Kanpur Nagar', landmark: "Babu Purwa Chauraha", latitude: 26.426, longitude: 80.343, active: true },

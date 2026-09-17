@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, MapPin, Crosshair, Loader2, Check } from 'lucide-react';
-import { api } from '@/api/supabaseClient';
+import { api, INITIAL_AREAS } from '@/api/supabaseClient';
 import { useGoogleMaps } from '@/hooks/useGoogleMaps';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -15,11 +15,12 @@ const KANPUR_BOUNDS = {
   west: 80.10,
 };
 
-function findNearestArea(lat, lng, areaList) {
-  if (lat == null || lng == null || !areaList || areaList.length === 0) return null;
+function findNearestArea(lat, lng, areaList = INITIAL_AREAS) {
+  const list = areaList && areaList.length ? areaList : INITIAL_AREAS;
+  if (lat == null || lng == null || !list || list.length === 0) return null;
   let nearest = null;
   let minDistance = Infinity;
-  for (const area of areaList) {
+  for (const area of list) {
     if (area.latitude != null && area.longitude != null) {
       const dLat = area.latitude - lat;
       const dLng = area.longitude - lng;
@@ -35,7 +36,7 @@ function findNearestArea(lat, lng, areaList) {
 
 export default function LocationPicker({ onSelect, defaultArea = 'Kalyanpur' }) {
   const { isLoaded } = useGoogleMaps();
-  const [areas, setAreas] = useState([]);
+  const [areas, setAreas] = useState(INITIAL_AREAS);
   const [areaQuery, setAreaQuery] = useState('');
   const [areaOpen, setAreaOpen] = useState(false);
   const [usingGps, setUsingGps] = useState(false);
@@ -129,13 +130,14 @@ export default function LocationPicker({ onSelect, defaultArea = 'Kalyanpur' }) 
 
     const onGeoSuccess = async (pos) => {
       const { latitude, longitude } = pos.coords;
+      const activeList = areas.length ? areas : INITIAL_AREAS;
 
-      // 1. Immediately find nearest registered area where pin drops
-      let detectedArea = findNearestArea(latitude, longitude, areas) || selectedArea;
+      // 1. Immediately find nearest registered municipal area from GPS coords
+      let detectedArea = findNearestArea(latitude, longitude, activeList) || activeList[0];
       let detectedLocationName = detectedArea?.name || 'Current Location';
-      let detectedAddress = detectedArea ? `${detectedArea.name}, Kanpur` : 'Kanpur';
+      let detectedAddress = detectedArea ? `${detectedArea.name}, ${detectedArea.ward ? detectedArea.ward + ', ' : ''}Kanpur` : 'Kanpur';
 
-      // 2. Reverse geocode to refine address & neighborhood
+      // 2. Reverse geocode to check for exact neighborhood or ward name
       try {
         if (isLoaded && window.google?.maps) {
           const geocoder = new window.google.maps.Geocoder();
@@ -154,9 +156,15 @@ export default function LocationPicker({ onSelect, defaultArea = 'Kalyanpur' }) 
             )?.long_name;
 
             if (sublocality) {
-              const matched = areas.find((a) => a.name.toLowerCase() === sublocality.toLowerCase());
-              detectedArea = matched || { id: null, name: sublocality };
-              detectedLocationName = sublocality;
+              const matched = activeList.find((a) =>
+                a.name.toLowerCase() === sublocality.toLowerCase() ||
+                a.name.toLowerCase().includes(sublocality.toLowerCase()) ||
+                sublocality.toLowerCase().includes(a.name.toLowerCase())
+              );
+              if (matched) {
+                detectedArea = matched;
+                detectedLocationName = matched.name;
+              }
             }
             detectedAddress = res.formatted_address || detectedAddress;
           }
@@ -179,32 +187,33 @@ export default function LocationPicker({ onSelect, defaultArea = 'Kalyanpur' }) 
               addr.road;
 
             if (sublocality) {
-              const matched = areas.find((a) =>
+              const matched = activeList.find((a) =>
                 a.name.toLowerCase().includes(sublocality.toLowerCase()) ||
                 sublocality.toLowerCase().includes(a.name.toLowerCase())
               );
               if (matched) {
                 detectedArea = matched;
-              } else if (!detectedArea) {
-                detectedArea = { id: null, name: sublocality };
+                detectedLocationName = matched.name;
               }
-              detectedLocationName = sublocality;
             }
             detectedAddress = nomRes.display_name || detectedAddress;
           }
         }
       } catch {
-        // Fallback handled by nearest area
+        // Fallback handled by nearest registered area
       }
 
-      // 3. Update all states
-      if (detectedArea) {
-        setSelectedArea(detectedArea);
-        setAreaQuery(detectedArea.name);
+      // Guarantee detectedArea is a valid registered area from the database list
+      if (!detectedArea || !detectedArea.name) {
+        detectedArea = findNearestArea(latitude, longitude, activeList) || activeList[0];
       }
+
+      // 3. Update all states and auto-select area
+      setSelectedArea(detectedArea);
+      setAreaQuery(detectedArea.name);
 
       const placeData = {
-        location_name: detectedLocationName,
+        location_name: detectedLocationName || detectedArea.name,
         formatted_address: detectedAddress,
         latitude,
         longitude,
@@ -213,11 +222,12 @@ export default function LocationPicker({ onSelect, defaultArea = 'Kalyanpur' }) 
       setSelectedPlace(placeData);
       setUsingGps(false);
       emitSelection(detectedArea, placeData);
-      showToast(`Pinned location at ${detectedArea?.name || detectedLocationName}`, 'success');
+      showToast(`Auto-selected Area: ${detectedArea.name} (${detectedArea.ward || 'Kanpur'})`, 'success');
     };
 
     const onGeoError = () => {
       setUsingGps(false);
+      const activeList = areas.length ? areas : INITIAL_AREAS;
       const defaultPin = {
         location_name: selectedArea?.name || 'Kanpur Center',
         formatted_address: selectedArea ? `${selectedArea.name}, Kanpur` : 'Kanpur, Uttar Pradesh',
@@ -225,9 +235,10 @@ export default function LocationPicker({ onSelect, defaultArea = 'Kalyanpur' }) 
         longitude: selectedArea?.longitude || 80.3319,
         google_place_id: '',
       };
+      const fallbackArea = selectedArea || activeList[0];
       setSelectedPlace(defaultPin);
-      emitSelection(selectedArea, defaultPin);
-      showToast('GPS unavailable. Dropped pin on map - click or drag to adjust.', 'info');
+      emitSelection(fallbackArea, defaultPin);
+      showToast('GPS unavailable. Pin placed on map — click or drag to adjust.', 'info');
     };
 
     navigator.geolocation.getCurrentPosition(
@@ -245,16 +256,15 @@ export default function LocationPicker({ onSelect, defaultArea = 'Kalyanpur' }) 
   };
 
   const handleMapPick = async (p) => {
-    // 1. Immediately find nearest area where the pin dropped on the map!
-    const nearest = findNearestArea(p.lat, p.lng, areas);
-    let detectedArea = nearest || selectedArea;
+    // 1. Immediately find nearest registered municipal area where the pin dropped on the map!
+    const activeList = areas.length ? areas : INITIAL_AREAS;
+    const nearest = findNearestArea(p.lat, p.lng, activeList) || activeList[0];
+    let detectedArea = nearest;
     let locationName = detectedArea?.name || 'Pinned Location';
-    let formattedAddress = detectedArea ? `${detectedArea.name}, Kanpur` : 'Kanpur';
+    let formattedAddress = detectedArea ? `${detectedArea.name}, ${detectedArea.ward ? detectedArea.ward + ', ' : ''}Kanpur` : 'Kanpur';
 
-    if (detectedArea) {
-      setSelectedArea(detectedArea);
-      setAreaQuery(detectedArea.name);
-    }
+    setSelectedArea(detectedArea);
+    setAreaQuery(detectedArea.name);
 
     const placeData = {
       location_name: locationName,
@@ -265,31 +275,69 @@ export default function LocationPicker({ onSelect, defaultArea = 'Kalyanpur' }) 
     };
     setSelectedPlace(placeData);
     emitSelection(detectedArea, placeData);
+    showToast(`Auto-selected Area: ${detectedArea.name} (${detectedArea.ward || 'Kanpur'})`, 'info');
 
     // 2. Refine reverse-geocoded address asynchronously
     try {
-      const nomRes = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1`,
-        { headers: { 'Accept-Language': 'en' } }
-      ).then((r) => r.json()).catch(() => null);
+      if (isLoaded && window.google?.maps) {
+        const geocoder = new window.google.maps.Geocoder();
+        const res = await new Promise((resolve) => {
+          geocoder.geocode({ location: { lat: p.lat, lng: p.lng } }, (results, status) => {
+            if (status === 'OK' && results?.[0]) resolve(results[0]);
+            else resolve(null);
+          });
+        });
+        if (res) {
+          const comp = res.address_components || [];
+          const sublocality = comp.find((c) =>
+            c.types?.includes('sublocality') ||
+            c.types?.includes('sublocality_level_1') ||
+            c.types?.includes('neighborhood')
+          )?.long_name;
+          if (sublocality) {
+            const matched = activeList.find((a) =>
+              a.name.toLowerCase() === sublocality.toLowerCase() ||
+              a.name.toLowerCase().includes(sublocality.toLowerCase()) ||
+              sublocality.toLowerCase().includes(a.name.toLowerCase())
+            );
+            if (matched) {
+              detectedArea = matched;
+              setSelectedArea(matched);
+              setAreaQuery(matched.name);
+            }
+          }
+          const updatedPlace = {
+            ...placeData,
+            location_name: sublocality || placeData.location_name,
+            formatted_address: res.formatted_address || placeData.formatted_address,
+          };
+          setSelectedPlace(updatedPlace);
+          emitSelection(detectedArea, updatedPlace);
+        }
+      } else {
+        const nomRes = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${p.lat}&lon=${p.lng}&zoom=18&addressdetails=1`,
+          { headers: { 'Accept-Language': 'en' } }
+        ).then((r) => r.json()).catch(() => null);
 
-      if (nomRes?.address) {
-        const addr = nomRes.address;
-        const sublocality =
-          addr.suburb ||
-          addr.neighbourhood ||
-          addr.city_district ||
-          addr.residential ||
-          addr.quarter ||
-          addr.road;
+        if (nomRes?.address) {
+          const addr = nomRes.address;
+          const sublocality =
+            addr.suburb ||
+            addr.neighbourhood ||
+            addr.city_district ||
+            addr.residential ||
+            addr.quarter ||
+            addr.road;
 
-        const updatedPlace = {
-          ...placeData,
-          location_name: sublocality || placeData.location_name,
-          formatted_address: nomRes.display_name || placeData.formatted_address,
-        };
-        setSelectedPlace(updatedPlace);
-        emitSelection(detectedArea, updatedPlace);
+          const updatedPlace = {
+            ...placeData,
+            location_name: sublocality || placeData.location_name,
+            formatted_address: nomRes.display_name || placeData.formatted_address,
+          };
+          setSelectedPlace(updatedPlace);
+          emitSelection(detectedArea, updatedPlace);
+        }
       }
     } catch {
       // ignore

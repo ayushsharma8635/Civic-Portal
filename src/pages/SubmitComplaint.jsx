@@ -20,6 +20,16 @@ import {
 
 const CATEGORIES = ["Road Damage", "Garbage Collection", "Street Light", "Water Leakage", "Drainage", "Electricity", "Stray Animals", "Illegal Parking", "Public Safety", "Other"];
 
+export function getCategoryDepartment(cat) {
+  const c = (cat || '').toLowerCase();
+  if (c.includes('water') || c.includes('drain') || c.includes('sewage')) return 'Jal Sansthan (Water & Drainage)';
+  if (c.includes('light') || c.includes('electr') || c.includes('power')) return 'KESCO (Electricity & Street Lighting)';
+  if (c.includes('garb') || c.includes('sanitat') || c.includes('waste')) return 'Solid Waste & Sanitation (Nagar Nigam)';
+  if (c.includes('health') || c.includes('animal') || c.includes('stray') || c.includes('mosquito')) return 'Health & Vector Control';
+  if (c.includes('traffic') || c.includes('park') || c.includes('signal')) return 'Traffic & Public Safety';
+  return 'Public Works Department (PWD)';
+}
+
 export default function SubmitComplaint() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
@@ -100,7 +110,7 @@ export default function SubmitComplaint() {
         citizen_email: currentUser?.email || '',
         citizen_phone: currentUser?.phone || '',
         priority: ai?.priority || "Medium",
-        department: ai?.suggested_department || "",
+        department: ai?.suggested_department || getCategoryDepartment(form.category),
         ai_summary: ai?.ai_summary || "",
         is_spam: ai?.is_spam || false,
         duplicate_of: ai?.duplicate_of || "",
